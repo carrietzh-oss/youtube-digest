@@ -26,6 +26,8 @@ let currentChannelName = "";
 let currentVideoDescription = "";
 let currentVideoDuration = 0;
 let isAnalysisLoading = false; // Track if analysis is in progress
+let isLearningLoading = false;
+let currentLearning = null;
 let youtubeTabId = null; // Store the YouTube tab ID for reliable messaging
 let errorAction = null;
 
@@ -421,6 +423,7 @@ function setupEventListeners() {
   document
     .getElementById("exportTranscriptBtn")
     ?.addEventListener("click", exportTranscript);
+  document.getElementById("generateLearningBtn")?.addEventListener("click", generateLearningMethod);
   document.querySelectorAll(".transcript-mode-btn").forEach((button) => {
     button.addEventListener("click", () => {
       handleDisplayLanguageModeChange(button.dataset.transcriptMode);
@@ -457,6 +460,55 @@ function setupEventListeners() {
     setNotesFilter(true);
     loadNotes(null); // Load all notes
   });
+}
+
+async function generateLearningMethod() {
+  if (isLearningLoading || !currentVideoId) return;
+  const status = document.getElementById("learningStatus");
+  const resultEl = document.getElementById("learningResult");
+  isLearningLoading = true;
+  if (status) status.textContent = "正在根据当前 Digest 生成学习心法…";
+  if (resultEl) { resultEl.hidden = true; resultEl.innerHTML = ""; }
+  try {
+    const response = await chrome.runtime.sendMessage({
+      action: "generateLearningMethod",
+      videoTitle: currentVideoTitle,
+      digestText: currentTranscriptText,
+      transcriptText: currentTranscriptText,
+    });
+    if (!response?.success) throw new Error(response?.error || "生成失败");
+    currentLearning = response.learning;
+    renderLearningMethod(currentLearning);
+    if (status) status.textContent = "已生成学习心法。";
+  } catch (error) {
+    if (status) status.textContent = `生成失败：${error.message}`;
+  } finally { isLearningLoading = false; }
+}
+
+function renderLearningMethod(data) {
+  const el = document.getElementById("learningResult");
+  if (!el) return;
+  const list = (items, render) => (Array.isArray(items) ? items : []).map(render).join("");
+  el.innerHTML = `
+    <h3>学习目标</h3><ul>${list(data.learningGoals, x => `<li>${escapeHtml(x)}</li>`)}</ul>
+    <h3>全局框架</h3><p>${escapeHtml(data.framework || "")}</p>
+    ${list(data.sections, s => `<section><h3>${escapeHtml(s.title)}</h3><p><b>它是什么：</b>${escapeHtml(s.concept)}</p><p><b>通俗解释：</b>${escapeHtml(s.plainExplanation)}</p><p><b>例子：</b>${escapeHtml(s.example)}</p><p><b>应用：</b>${escapeHtml(s.application)}</p><p><b>常见误区：</b>${list(s.misconceptions, x => `<span class="learning-chip">${escapeHtml(x)}</span>`)}</p></section>`)}
+    <h3>串联案例</h3><p>${escapeHtml(data.caseStudy || "")}</p>
+    <h3>知识检测</h3>${list(data.quiz, (q, i) => `<div class="learning-quiz"><p><b>${i + 1}. ${escapeHtml(q.question)}</b></p>${list(q.options, (o, j) => `<button class="learning-option" data-answer="${j === Number(q.answerIndex)}">${String.fromCharCode(65 + j)}. ${escapeHtml(o)}</button>`)}<p class="learning-feedback" hidden>${escapeHtml(q.explanation || "")}</p></div>`)}
+    <h3>复习路线</h3><ol>${list(data.reviewPath, x => `<li>${escapeHtml(x)}</li>`)}</ol>
+    <h3>最终心法</h3><p>${escapeHtml(data.finalMindset || "")}</p>`;
+  el.hidden = false;
+  el.querySelectorAll(".learning-option").forEach((button) => button.addEventListener("click", () => {
+    const correct = button.dataset.answer === "true";
+    button.classList.add(correct ? "correct" : "wrong");
+    const feedback = button.parentElement.querySelector(".learning-feedback");
+    if (feedback) {
+      const correctText = button.parentElement.querySelector('[data-answer="true"]')?.textContent || "";
+      feedback.textContent = `${correct ? "回答正确。" : `回答错误，正确答案是 ${correctText}。`} ${feedback.textContent}`;
+      feedback.hidden = false;
+    }
+    button.parentElement.querySelectorAll(".learning-option").forEach((b) => { b.disabled = true; if (b.dataset.answer === "true") b.classList.add("correct"); });
+  }));
 }
 
 function setNotesFilter(showAll) {
