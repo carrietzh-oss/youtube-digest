@@ -65,6 +65,19 @@
   box-sizing: border-box;
 }
 
+.learning-result { margin-top: 16px; line-height: 1.75; }
+.learning-result h3 { margin: 20px 0 8px; color: var(--text); }
+.learning-result p { margin: 6px 0 10px; }
+.learning-result ul, .learning-result ol { padding-left: 22px; }
+.learning-result section { padding: 12px; margin: 12px 0; background: var(--surface-raised); border: 1px solid var(--border); border-radius: var(--r-md); }
+.learning-chip { display: inline-block; margin: 3px 5px 3px 0; padding: 3px 8px; border-radius: var(--r-pill); background: var(--accent-dim); }
+.learning-quiz { margin: 12px 0; padding: 12px; border: 1px solid var(--border); border-radius: var(--r-md); }
+.learning-option { display: block; width: 100%; margin: 6px 0; padding: 8px 10px; text-align: left; color: var(--text); background: var(--surface); border: 1px solid var(--border); border-radius: var(--r-sm); cursor: pointer; }
+.learning-option:hover:not(:disabled) { border-color: var(--accent); }
+.learning-option.correct { background: var(--sage-dim); border-color: var(--success); }
+.learning-option.wrong { background: var(--accent-dim); border-color: var(--accent); }
+.learning-feedback { margin-top: 10px; padding: 9px 10px; background: var(--surface-raised); border-radius: var(--r-sm); }
+
 html,
 body {
   height: 100%;
