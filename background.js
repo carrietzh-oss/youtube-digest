@@ -370,6 +370,13 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     return true;
   }
 
+  if (message.action === "generateLearningMethod") {
+    handleGenerateLearningMethod(message)
+      .then(sendResponse)
+      .catch((err) => sendResponse({ success: false, error: err.message }));
+    return true;
+  }
+
   if (message.action === "explainSelection") {
     // Explain selected text using DeepSeek.
     handleExplainSelection(
@@ -896,6 +903,36 @@ function parseLooseJson(text) {
 // ============================================================
 // DEEPSEEK ANALYSIS
 // ============================================================
+
+/** Generate a beginner-friendly study guide from the already cached digest. */
+async function handleGenerateLearningMethod(message) {
+  const settings = await getSettings();
+  if (!settings.aiApiKey) {
+    return { success: false, error: "DeepSeek API key not configured. Open YouTube Digest Settings." };
+  }
+  const transcript = message.transcriptText || "";
+  const digest = message.digestText || "";
+  if (!transcript && !digest) return { success: false, error: "No cached digest content is available." };
+  const source = digest || transcript;
+  const systemPrompt = `你是一位耐心的中文老师。请把视频 Digest 内容重构成真正能学会、复习和自测的初学者教程。
+要求：口语化中文；首次出现术语同时给出英文和中文；重要概念回答是什么、为什么、怎样运作、怎样使用；用类比建立直觉但标明类比不是事实；保留原文事实、因果关系、限制条件和案例；不要凭标题补写。
+输出严格为 JSON，不要 Markdown 代码围栏，字段如下：
+{"learningGoals":[""],"toc":[{"title":"","anchor":""}],"framework":"","sections":[{"title":"","concept":"","plainExplanation":"","example":"","misconceptions":[""],"application":""}],"caseStudy":"","quiz":[{"question":"","options":["","","",""],"answerIndex":0,"explanation":""}],"reviewPath":[""],"finalMindset":""}
+必须生成 3-8 个章节和恰好 10 道四选一题。选项从 A 到 D，错误选项对应真实误区。答案和解释用于点击后展示。`;
+  const userPrompt = `视频标题：${message.videoTitle || "未知"}\n\n已有 Digest 内容：\n${source}`;
+  try {
+    const { text } = await requestAiCompletion({
+      maxTokens: 12000,
+      responseFormat: { type: "json_object" },
+      messages: [{ role: "system", content: systemPrompt }, { role: "user", content: userPrompt }],
+    });
+    const learning = parseLooseJson(text);
+    if (!learning || !Array.isArray(learning.quiz)) throw new Error("DeepSeek returned an invalid learning guide.");
+    return { success: true, learning };
+  } catch (error) {
+    return { success: false, error: error.message || "Failed to generate learning method" };
+  }
+}
 
 /**
  * Sends the transcript to DeepSeek for analysis.
