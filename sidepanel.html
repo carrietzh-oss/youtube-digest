@@ -65,6 +65,7 @@
       <div class="tabs" id="tabsNav" style="display: none">
         <button class="tab active" data-tab="transcript">Transcript</button>
         <button class="tab" data-tab="overview">Overview</button>
+        <button class="tab" data-tab="learning">学习心法</button>
         <button class="tab" data-tab="notes">Notes</button>
       </div>
     </div>
@@ -218,6 +219,18 @@
                 </div>
               </div>
             </div>
+          </div>
+        </div>
+
+        <!-- TAB: Learning method - uses the already cached digest transcript -->
+        <div class="tab-panel" data-panel="learning">
+          <div class="section">
+            <div class="section-header">
+              <div class="section-title">学习心法</div>
+              <button class="enhance-btn" id="generateLearningBtn" type="button">生成</button>
+            </div>
+            <div id="learningStatus" class="notes-intro">点击“生成”，把当前视频重构成适合初学者学习、复习和自测的教程。</div>
+            <article id="learningResult" class="learning-result" hidden></article>
           </div>
         </div>
 
