@@ -1,14 +1,16 @@
 {
   "manifest_version": 3,
   "name": "YouTube Digest",
-  "version": "1.2.1",
+  "version": "1.2.2",
   "minimum_chrome_version": "116",
   "description": "Turn YouTube videos into learning resources with transcripts, bilingual translation, AI overviews, and notes.",
   "permissions": ["sidePanel", "storage", "tabs", "scripting"],
   "host_permissions": [
     "https://www.youtube.com/*",
     "https://api.supadata.ai/*",
-    "https://api.deepseek.com/*"
+    "https://api.deepseek.com/*",
+    "http://127.0.0.1:27123/*",
+    "https://127.0.0.1:27124/*"
   ],
   "action": {
     "default_title": "Open YouTube Digest",
