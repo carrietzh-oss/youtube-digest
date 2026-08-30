@@ -15,6 +15,12 @@ YouTube Digest is a bring-your-own-key project installed locally from GitHub. It
 
 ![YouTube Digest demo](YouTube%20Digest%20demo.png)
 
+## New in v1.2.2
+
+- Automatically create or overwrite Learning Method Markdown notes through Obsidian Local REST API.
+- Store the Obsidian API key only in Chrome local extension storage and send it only to the fixed loopback endpoint.
+- Write long guides directly without opening Obsidian through a custom URI.
+
 ## New in v1.2.1
 
 - Copy a generated Learning Method as structured Markdown or download it as a `.md` file.
@@ -89,6 +95,18 @@ See the [official Supadata documentation](https://docs.supadata.ai/) if the dash
 
 See the [official DeepSeek API documentation](https://api-docs.deepseek.com/) for current account and API details.
 
+### Connect Obsidian with Local REST API
+
+This integration is optional and only runs when you enable **Obsidian sync**.
+
+1. In the target Obsidian Vault, install and enable the community plugin [Local REST API](https://github.com/coddingtonbear/obsidian-local-rest-api).
+2. Open **Settings → Local REST API** in Obsidian and copy its API key.
+3. Enable **HTTP Server** in the plugin settings. YouTube Digest connects only to `http://127.0.0.1:27123` by default.
+4. In YouTube Digest Settings, enable **Obsidian sync**, paste the API key yourself, and keep the folder as `学习心法` or choose another Vault-relative folder.
+5. Generate a Learning Method. YouTube Digest creates or overwrites `folder/video title [video ID].md` in the currently running Vault.
+
+You can instead enable HTTPS in YouTube Digest after trusting the Local REST API self-signed certificate. HTTPS uses the fixed endpoint `https://127.0.0.1:27124`. Never paste the Obsidian API key into source code, chat, screenshots, or repository files.
+
 Open **Settings** from the side panel. You can also open the YouTube Digest **Options** page from its card at `chrome://extensions` or by right-clicking its toolbar icon. Paste keys only into these Settings fields. Never paste a key into an AI chat, repository file, screenshot, or public message.
 
 The published version supports DeepSeek V4 Flash as its only AI provider:
@@ -100,7 +118,7 @@ Model: deepseek-v4-flash
 
 YouTube Digest sends every DeepSeek request in non-thinking mode for responsive, predictable interactions. The endpoint and model are fixed in Settings, so the only AI credential you enter is your DeepSeek API key. To use another provider or model, copy the safe customization prompt in Settings and give it to a coding agent for your local copy. Never add an API key to that prompt or chat.
 
-Keys and settings are stored in Chrome's local extension storage on your device. Release builds do not include or use `config.js`.
+Keys and settings, including an optional Obsidian Local REST API key, are stored in Chrome's local extension storage on your device. Release builds do not include or use `config.js`.
 
 ## Use YouTube Digest
 
