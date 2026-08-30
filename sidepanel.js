@@ -585,25 +585,38 @@ async function syncLearningToObsidian(data) {
   const settings = YTD_SETTINGS.normalize(stored[YTD_SETTINGS.STORAGE_KEY]);
   if (!settings.obsidianEnabled) return { enabled: false };
 
-  if (!settings.obsidianVault) {
-    throw new Error("请先在设置中填写 Obsidian Vault 名称或 ID");
+  if (!settings.obsidianApiKey) {
+    throw new Error("请先在设置中填写 Obsidian Local REST API Key");
   }
 
-  const fileName = `${sanitizeObsidianFileName(currentVideoTitle)} [${currentVideoId}]`;
+  const fileName = `${sanitizeObsidianFileName(currentVideoTitle)} [${currentVideoId}].md`;
   const filePath = settings.obsidianFolder
     ? `${settings.obsidianFolder}/${fileName}`
     : fileName;
-  const params = [
-    ["vault", settings.obsidianVault],
-    ["file", filePath],
-    ["content", buildLearningMarkdown(data)],
-    ["overwrite", "true"],
-    ["silent", "true"],
-  ]
-    .map(([key, value]) => `${key}=${encodeURIComponent(value)}`)
-    .join("&");
+  const encodedPath = filePath
+    .split("/")
+    .filter(Boolean)
+    .map((segment) => encodeURIComponent(segment))
+    .join("/");
+  const response = await fetch(
+    `${YTD_SETTINGS.obsidianApiBaseUrl(settings)}/vault/${encodedPath}`,
+    {
+      method: "PUT",
+      headers: {
+        Authorization: `Bearer ${settings.obsidianApiKey}`,
+        "Content-Type": "text/markdown; charset=utf-8",
+      },
+      body: buildLearningMarkdown(data),
+      credentials: "omit",
+    },
+  );
 
-  await chrome.tabs.create({ url: `obsidian://new?${params}` });
+  if (response.status === 401) {
+    throw new Error("Local REST API Key 无效");
+  }
+  if (!response.ok) {
+    throw new Error(`Local REST API 返回 HTTP ${response.status}`);
+  }
   return { enabled: true, filePath };
 }
 
@@ -631,7 +644,7 @@ async function generateLearningMethod() {
     try {
       const syncResult = await syncLearningToObsidian(currentLearning);
       if (syncResult.enabled && status) {
-        status.textContent = `已生成，并已请求 Obsidian 更新：${syncResult.filePath}.md`;
+        status.textContent = `已生成，并已自动更新 Obsidian：${syncResult.filePath}`;
       }
     } catch (syncError) {
       if (status) {
