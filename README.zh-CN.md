@@ -17,6 +17,12 @@ YouTube Digest 是一个需要自行提供 API Key 的开源项目，通过 GitH
 
 ![YouTube Digest 双语演示](YouTube%20Digest%20demo%20bilingual.png)
 
+## v1.2.2 更新
+
+- 学习心法生成完成后，通过 Obsidian Local REST API 自动创建或覆盖 Markdown 笔记。
+- Obsidian API Key 只保存在 Chrome 扩展本地存储中，并且只发送到固定的本机回环地址。
+- 长篇学习心法直接写入 Vault，不再打开 Obsidian URI，也不受 URI 长度限制。
+
 ## v1.2.1 更新
 
 - 一键复制学习心法的结构化 Markdown 内容，或下载为 `.md` 文件。
@@ -91,6 +97,18 @@ YouTube Digest 需要你在自己的服务账号中准备两个 Key：
 
 当前账号和接口说明请查看 [DeepSeek 官方 API 文档](https://api-docs.deepseek.com/)。
 
+### 通过 Local REST API 连接 Obsidian
+
+这项功能是可选的，只有开启 **Obsidian 同步** 后才会运行。
+
+1. 在目标 Obsidian Vault 中安装并启用社区插件 [Local REST API](https://github.com/coddingtonbear/obsidian-local-rest-api)。
+2. 打开 Obsidian 的 **设置 → Local REST API**，复制插件生成的 API Key。
+3. 在插件设置中开启 **HTTP Server**。YouTube Digest 默认只连接 `http://127.0.0.1:27123`。
+4. 打开 YouTube Digest 设置，开启 **Obsidian 同步**，由你本人粘贴 API Key；文件夹可以保留为 `学习心法`。
+5. 生成学习心法。扩展会在当前运行的 Vault 中创建或覆盖 `文件夹/视频标题 [视频ID].md`。
+
+如果已经信任 Local REST API 的自签名证书，也可以在 YouTube Digest 中开启 HTTPS，此时使用固定地址 `https://127.0.0.1:27124`。不要把 Obsidian API Key 放入源代码、聊天、截图或仓库文件。
+
 在侧边栏中打开 **Settings**。你也可以在 `chrome://extensions` 的 YouTube Digest 卡片中打开扩展选项。Key 只能粘贴到这些设置输入框中。不要把 Key 发送到 AI 对话、项目文件、截图或公开消息中。
 
 发布版本只支持 DeepSeek V4 Flash：
@@ -102,7 +120,7 @@ Model: deepseek-v4-flash
 
 YouTube Digest 会让所有 DeepSeek 请求使用非思考模式，以获得更快、更稳定的交互。设置中的接口地址和模型固定，只需要填写 DeepSeek API Key。如果想使用其他服务或模型，请在设置中复制安全的自定义 prompt，让编程 Agent 修改你自己的本地副本。不要把任何 API Key 放进 prompt 或对话。
 
-API Key 和设置保存在你设备上的 Chrome 扩展本地存储中。发布包不会包含或使用 `config.js`。
+API Key 和设置（包括可选的 Obsidian Local REST API Key）保存在你设备上的 Chrome 扩展本地存储中。发布包不会包含或使用 `config.js`。
 
 ## 使用 YouTube Digest
 
