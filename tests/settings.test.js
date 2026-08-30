@@ -52,21 +52,32 @@ test("legacy custom migration clears only the AI key and is idempotent", () => {
 });
 
 
-test("Obsidian sync settings are normalized safely", () => {
+test("Obsidian Local REST API settings are normalized safely", () => {
   const normalized = settings.normalize({
     obsidianEnabled: true,
-    obsidianVault: "  My Vault  ",
+    obsidianApiKey: "  local-rest-placeholder  ",
+    obsidianUseHttps: true,
     obsidianFolder: "/学习心法/",
   });
 
   assert.equal(normalized.obsidianEnabled, true);
-  assert.equal(normalized.obsidianVault, "My Vault");
+  assert.equal(normalized.obsidianApiKey, "local-rest-placeholder");
+  assert.equal(normalized.obsidianUseHttps, true);
   assert.equal(normalized.obsidianFolder, "学习心法");
+  assert.equal(
+    settings.obsidianApiBaseUrl(normalized),
+    "https://127.0.0.1:27124",
+  );
 
   const defaults = settings.normalize({});
   assert.equal(defaults.obsidianEnabled, false);
-  assert.equal(defaults.obsidianVault, "");
+  assert.equal(defaults.obsidianApiKey, "");
+  assert.equal(defaults.obsidianUseHttps, false);
   assert.equal(defaults.obsidianFolder, "学习心法");
+  assert.equal(
+    settings.obsidianApiBaseUrl(defaults),
+    "http://127.0.0.1:27123",
+  );
 });
 
 test("Supadata receives a canonical YouTube URL", () => {
