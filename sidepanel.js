@@ -462,6 +462,149 @@ function setupEventListeners() {
   });
 }
 
+
+function learningMarkdownText(value) {
+  return String(value ?? "").trim();
+}
+
+function learningMarkdownList(items, ordered = false) {
+  if (!Array.isArray(items) || items.length === 0) return "_暂无_";
+  return items
+    .map((item, index) => {
+      const prefix = ordered ? `${index + 1}.` : "-";
+      return `${prefix} ${learningMarkdownText(item).replace(/\n/g, "\n  ")}`;
+    })
+    .join("\n");
+}
+
+function buildLearningMarkdown(data) {
+  const videoUrl = `https://www.youtube.com/watch?v=${currentVideoId}`;
+  const title = currentVideoTitle || `YouTube ${currentVideoId}`;
+  const sections = (Array.isArray(data.sections) ? data.sections : [])
+    .map((section) => {
+      const misconceptions = learningMarkdownList(section.misconceptions);
+      return [
+        `## ${learningMarkdownText(section.title) || "核心知识点"}`,
+        "",
+        `**它是什么：** ${learningMarkdownText(section.concept)}`,
+        "",
+        `**通俗解释：** ${learningMarkdownText(section.plainExplanation)}`,
+        "",
+        `**例子：** ${learningMarkdownText(section.example)}`,
+        "",
+        `**应用：** ${learningMarkdownText(section.application)}`,
+        "",
+        "**常见误区：**",
+        misconceptions,
+      ].join("\n");
+    })
+    .join("\n\n");
+
+  const quiz = (Array.isArray(data.quiz) ? data.quiz : [])
+    .map((question, index) => {
+      const answerIndex = Number(question.answerIndex);
+      const options = (Array.isArray(question.options) ? question.options : [])
+        .map((option, optionIndex) =>
+          `- ${String.fromCharCode(65 + optionIndex)}. ${learningMarkdownText(option)}`,
+        )
+        .join("\n");
+      const answer =
+        Array.isArray(question.options) && question.options[answerIndex] !== undefined
+          ? `${String.fromCharCode(65 + answerIndex)}. ${learningMarkdownText(question.options[answerIndex])}`
+          : "未提供";
+      return [
+        `### ${index + 1}. ${learningMarkdownText(question.question)}`,
+        options,
+        "",
+        `**答案：** ${answer}`,
+        "",
+        `**解析：** ${learningMarkdownText(question.explanation)}`,
+      ].join("\n");
+    })
+    .join("\n\n");
+
+  return [
+    "---",
+    `title: ${JSON.stringify(`${title}｜学习心法`)}`,
+    `source: ${JSON.stringify(videoUrl)}`,
+    `youtube_id: ${JSON.stringify(currentVideoId)}`,
+    `channel: ${JSON.stringify(currentChannelName || "")}`,
+    `generated_at: ${JSON.stringify(new Date().toISOString())}`,
+    "tags:",
+    "  - youtube",
+    "  - 学习心法",
+    "---",
+    "",
+    `# ${title}｜学习心法`,
+    "",
+    `[观看原视频](${videoUrl})`,
+    "",
+    "## 学习目标",
+    "",
+    learningMarkdownList(data.learningGoals),
+    "",
+    "## 全局框架",
+    "",
+    learningMarkdownText(data.framework),
+    "",
+    sections || "_暂无_",
+    "",
+    "## 串联案例",
+    "",
+    learningMarkdownText(data.caseStudy),
+    "",
+    "## 知识检测",
+    "",
+    quiz || "_暂无_",
+    "",
+    "## 复习路线",
+    "",
+    learningMarkdownList(data.reviewPath, true),
+    "",
+    "## 最终心法",
+    "",
+    learningMarkdownText(data.finalMindset),
+    "",
+  ].join("\n");
+}
+
+function sanitizeObsidianFileName(value) {
+  const normalized = learningMarkdownText(value)
+    .normalize("NFKC")
+    .replace(/[\\/:*?"<>|#[\]^\u0000-\u001f]/g, "-")
+    .replace(/\s+/g, " ")
+    .replace(/[. ]+$/g, "")
+    .trim();
+  return (normalized || `YouTube ${currentVideoId}`).slice(0, 100);
+}
+
+async function syncLearningToObsidian(data) {
+  const stored = await chrome.storage.local.get(YTD_SETTINGS.STORAGE_KEY);
+  const settings = YTD_SETTINGS.normalize(stored[YTD_SETTINGS.STORAGE_KEY]);
+  if (!settings.obsidianEnabled) return { enabled: false };
+
+  if (!settings.obsidianVault) {
+    throw new Error("请先在设置中填写 Obsidian Vault 名称或 ID");
+  }
+
+  const fileName = `${sanitizeObsidianFileName(currentVideoTitle)} [${currentVideoId}]`;
+  const filePath = settings.obsidianFolder
+    ? `${settings.obsidianFolder}/${fileName}`
+    : fileName;
+  const params = [
+    ["vault", settings.obsidianVault],
+    ["file", filePath],
+    ["content", buildLearningMarkdown(data)],
+    ["overwrite", "true"],
+    ["silent", "true"],
+  ]
+    .map(([key, value]) => `${key}=${encodeURIComponent(value)}`)
+    .join("&");
+
+  await chrome.tabs.create({ url: `obsidian://new?${params}` });
+  return { enabled: true, filePath };
+}
+
 async function generateLearningMethod() {
   if (isLearningLoading || !currentVideoId) return;
   const status = document.getElementById("learningStatus");
@@ -480,6 +623,16 @@ async function generateLearningMethod() {
     currentLearning = response.learning;
     renderLearningMethod(currentLearning);
     if (status) status.textContent = "已生成学习心法。";
+    try {
+      const syncResult = await syncLearningToObsidian(currentLearning);
+      if (syncResult.enabled && status) {
+        status.textContent = `已生成，并已请求 Obsidian 更新：${syncResult.filePath}.md`;
+      }
+    } catch (syncError) {
+      if (status) {
+        status.textContent = `已生成学习心法，但 Obsidian 更新失败：${syncError.message}`;
+      }
+    }
   } catch (error) {
     if (status) status.textContent = `生成失败：${error.message}`;
   } finally { isLearningLoading = false; }
