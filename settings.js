@@ -13,7 +13,8 @@ var YTD_SETTINGS = (() => {
     aiModel: "deepseek-v4-flash",
     supadataApiKey: "",
     obsidianEnabled: false,
-    obsidianVault: "",
+    obsidianApiKey: "",
+    obsidianUseHttps: false,
     obsidianFolder: "学习心法",
   });
 
@@ -36,10 +37,11 @@ var YTD_SETTINGS = (() => {
           ? input.supadataApiKey.trim()
           : "",
       obsidianEnabled: input.obsidianEnabled === true,
-      obsidianVault:
-        typeof input.obsidianVault === "string"
-          ? input.obsidianVault.trim()
+      obsidianApiKey:
+        typeof input.obsidianApiKey === "string"
+          ? input.obsidianApiKey.trim()
           : "",
+      obsidianUseHttps: input.obsidianUseHttps === true,
       obsidianFolder:
         typeof input.obsidianFolder === "string" && input.obsidianFolder.trim()
           ? input.obsidianFolder.trim().replace(/^\/+|\/+$/g, "")
@@ -58,6 +60,12 @@ var YTD_SETTINGS = (() => {
     return `${DEFAULTS.aiBaseUrl}/chat/completions`;
   }
 
+  function obsidianApiBaseUrl(input = {}) {
+    return input.obsidianUseHttps === true
+      ? "https://127.0.0.1:27124"
+      : "http://127.0.0.1:27123";
+  }
+
   function canonicalYouTubeUrl(videoId) {
     const normalized = String(videoId || "").trim();
     if (!/^[A-Za-z0-9_-]{6,20}$/.test(normalized)) {
@@ -73,6 +81,7 @@ var YTD_SETTINGS = (() => {
     normalize,
     migrateLegacyCustom,
     chatCompletionsUrl,
+    obsidianApiBaseUrl,
     canonicalYouTubeUrl,
   };
 })();
