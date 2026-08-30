@@ -12,6 +12,9 @@ var YTD_SETTINGS = (() => {
     aiBaseUrl: "https://api.deepseek.com",
     aiModel: "deepseek-v4-flash",
     supadataApiKey: "",
+    obsidianEnabled: false,
+    obsidianVault: "",
+    obsidianFolder: "学习心法",
   });
 
   function isLegacyCustom(input) {
@@ -32,6 +35,15 @@ var YTD_SETTINGS = (() => {
         typeof input.supadataApiKey === "string"
           ? input.supadataApiKey.trim()
           : "",
+      obsidianEnabled: input.obsidianEnabled === true,
+      obsidianVault:
+        typeof input.obsidianVault === "string"
+          ? input.obsidianVault.trim()
+          : "",
+      obsidianFolder:
+        typeof input.obsidianFolder === "string" && input.obsidianFolder.trim()
+          ? input.obsidianFolder.trim().replace(/^\/+|\/+$/g, "")
+          : DEFAULTS.obsidianFolder,
     };
   }
 
