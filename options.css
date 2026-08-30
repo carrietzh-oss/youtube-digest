@@ -120,6 +120,17 @@ label {
   font-weight: 700;
 }
 
+.checkbox-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.checkbox-row input {
+  width: auto;
+  margin: 0;
+}
+
 input,
 textarea,
 button {
