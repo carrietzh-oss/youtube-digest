@@ -424,6 +424,8 @@ function setupEventListeners() {
     .getElementById("exportTranscriptBtn")
     ?.addEventListener("click", exportTranscript);
   document.getElementById("generateLearningBtn")?.addEventListener("click", generateLearningMethod);
+  document.getElementById("copyLearningBtn")?.addEventListener("click", copyLearningMethod);
+  document.getElementById("downloadLearningBtn")?.addEventListener("click", downloadLearningMethod);
   document.querySelectorAll(".transcript-mode-btn").forEach((button) => {
     button.addEventListener("click", () => {
       handleDisplayLanguageModeChange(button.dataset.transcriptMode);
@@ -607,6 +609,7 @@ async function syncLearningToObsidian(data) {
 
 async function generateLearningMethod() {
   if (isLearningLoading || !currentVideoId) return;
+  const requestedVideoId = currentVideoId;
   const status = document.getElementById("learningStatus");
   const resultEl = document.getElementById("learningResult");
   isLearningLoading = true;
@@ -620,8 +623,10 @@ async function generateLearningMethod() {
       transcriptText: currentTranscriptText,
     });
     if (!response?.success) throw new Error(response?.error || "生成失败");
+    if (requestedVideoId !== currentVideoId) return;
     currentLearning = response.learning;
     renderLearningMethod(currentLearning);
+    await saveToCache(requestedVideoId);
     if (status) status.textContent = "已生成学习心法。";
     try {
       const syncResult = await syncLearningToObsidian(currentLearning);
@@ -651,6 +656,7 @@ function renderLearningMethod(data) {
     <h3>复习路线</h3><ol>${list(data.reviewPath, x => `<li>${escapeHtml(x)}</li>`)}</ol>
     <h3>最终心法</h3><p>${escapeHtml(data.finalMindset || "")}</p>`;
   el.hidden = false;
+  setLearningActionsVisible(true);
   el.querySelectorAll(".learning-option").forEach((button) => button.addEventListener("click", () => {
     const correct = button.dataset.answer === "true";
     button.classList.add(correct ? "correct" : "wrong");
@@ -662,6 +668,83 @@ function renderLearningMethod(data) {
     }
     button.parentElement.querySelectorAll(".learning-option").forEach((b) => { b.disabled = true; if (b.dataset.answer === "true") b.classList.add("correct"); });
   }));
+}
+
+function setLearningActionsVisible(visible) {
+  document.getElementById("copyLearningBtn")?.toggleAttribute("hidden", !visible);
+  document.getElementById("downloadLearningBtn")?.toggleAttribute("hidden", !visible);
+}
+
+function resetLearningMethodUI() {
+  currentLearning = null;
+  const status = document.getElementById("learningStatus");
+  const result = document.getElementById("learningResult");
+  if (status) {
+    status.textContent = "点击“生成”，把当前视频重构成适合初学者学习、复习和自测的教程。";
+  }
+  if (result) {
+    result.hidden = true;
+    result.innerHTML = "";
+  }
+  setLearningActionsVisible(false);
+}
+
+function learningMethodToMarkdown(data, videoTitle = "", videoId = "") {
+  if (!data) return "";
+  const lines = [`# ${videoTitle || "学习心法"}`];
+  if (videoId) lines.push("", `视频：https://www.youtube.com/watch?v=${videoId}`);
+  const addList = (heading, items, ordered = false) => {
+    if (!Array.isArray(items) || items.length === 0) return;
+    lines.push("", `## ${heading}`, "");
+    items.forEach((item, index) => lines.push(`${ordered ? `${index + 1}.` : "-"} ${item || ""}`));
+  };
+
+  addList("学习目标", data.learningGoals);
+  if (data.framework) lines.push("", "## 全局框架", "", data.framework);
+  (Array.isArray(data.sections) ? data.sections : []).forEach((section) => {
+    lines.push("", `## ${section.title || "核心概念"}`);
+    if (section.concept) lines.push("", `**它是什么：** ${section.concept}`);
+    if (section.plainExplanation) lines.push("", `**通俗解释：** ${section.plainExplanation}`);
+    if (section.example) lines.push("", `**例子：** ${section.example}`);
+    if (section.application) lines.push("", `**应用：** ${section.application}`);
+    if (Array.isArray(section.misconceptions) && section.misconceptions.length) {
+      lines.push("", "**常见误区：**", "");
+      section.misconceptions.forEach((item) => lines.push(`- ${item}`));
+    }
+  });
+  if (data.caseStudy) lines.push("", "## 串联案例", "", data.caseStudy);
+  if (Array.isArray(data.quiz) && data.quiz.length) {
+    lines.push("", "## 知识检测");
+    data.quiz.forEach((question, index) => {
+      lines.push("", `### ${index + 1}. ${question.question || ""}`, "");
+      (Array.isArray(question.options) ? question.options : []).forEach((option, optionIndex) => {
+        lines.push(`- ${String.fromCharCode(65 + optionIndex)}. ${option}`);
+      });
+      const answerIndex = Number(question.answerIndex);
+      if (Number.isInteger(answerIndex) && answerIndex >= 0) {
+        lines.push("", `**答案：** ${String.fromCharCode(65 + answerIndex)}`);
+      }
+      if (question.explanation) lines.push("", `**解析：** ${question.explanation}`);
+    });
+  }
+  addList("复习路线", data.reviewPath, true);
+  if (data.finalMindset) lines.push("", "## 最终心法", "", data.finalMindset);
+  return `${lines.join("\n").trim()}\n`;
+}
+
+function copyLearningMethod() {
+  if (!currentLearning) return;
+  copyToClipboardWithFeedback(
+    learningMethodToMarkdown(currentLearning, currentVideoTitle, currentVideoId),
+    "copyLearningBtn",
+  );
+}
+
+function downloadLearningMethod() {
+  if (!currentLearning) return;
+  const markdown = learningMethodToMarkdown(currentLearning, currentVideoTitle, currentVideoId);
+  const filename = `${sanitizeFilename(currentVideoTitle)}-学习心法.md`;
+  downloadTextFile(markdown, filename, "text/markdown;charset=utf-8");
 }
 
 function setNotesFilter(showAll) {
@@ -779,6 +862,7 @@ async function startDigest(videoId, videoUrl) {
 
   // Every video change invalidates observer work and in-flight translations.
   if (videoChanged) {
+    resetLearningMethodUI();
     translationGeneration += 1;
     if (transcriptScrollObserver) transcriptScrollObserver.disconnect();
     transcriptScrollObserver = null;
@@ -807,6 +891,7 @@ async function startDigest(videoId, videoUrl) {
     currentTranscriptText = cached.transcriptText;
     currentTranscriptTimestamped = cached.transcriptTimestamped;
     currentTranscriptLanguage = cached.transcriptLanguage || null;
+    currentLearning = cached.learning || null;
     isAnalysisLoading = false;
 
     // Restore semantic-segment translations from persistent storage.
@@ -836,6 +921,11 @@ async function startDigest(videoId, videoUrl) {
       renderAnalysisResults(currentAnalysis);
       highlightMomentsOnPage(currentAnalysis.keyMoments);
     }
+    if (currentLearning) {
+      renderLearningMethod(currentLearning);
+      const learningStatus = document.getElementById("learningStatus");
+      if (learningStatus) learningStatus.textContent = "已恢复保存的学习心法。";
+    }
 
     showState("results");
     document.getElementById("tabsNav").style.display = "flex";
@@ -857,6 +947,7 @@ async function startDigest(videoId, videoUrl) {
   currentTranscriptText = null;
   currentTranscriptTimestamped = null;
   currentTranscriptLanguage = null;
+  currentLearning = null;
   isAnalysisLoading = false;
 
   if (currentVideoTitle || currentChannelName) {
@@ -1879,8 +1970,8 @@ async function copyToClipboardWithFeedback(text, buttonId) {
   }
 }
 
-function downloadTextFile(text, filename) {
-  const blob = new Blob([text], { type: "text/plain" });
+function downloadTextFile(text, filename, mimeType = "text/plain") {
+  const blob = new Blob([text], { type: mimeType });
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
   a.href = url;
@@ -2180,6 +2271,7 @@ async function saveToCache(videoId) {
       channelName: currentChannelName,
       paragraphCache: paragraphCacheForVideo,
       interfaceCache: interfaceCacheForVideo,
+      learning: currentLearning,
       timestamp: Date.now(),
     };
 
@@ -3109,4 +3201,5 @@ globalThis.__YTD_TRANSCRIPT_TESTING__ = {
   getNavigationUrl,
   renderSubtitleInlineMarkup,
   renderTranscriptSegmentContent,
+  learningMethodToMarkdown,
 };

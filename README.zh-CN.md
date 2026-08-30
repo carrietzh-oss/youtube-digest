@@ -17,6 +17,11 @@ YouTube Digest 是一个需要自行提供 API Key 的开源项目，通过 GitH
 
 ![YouTube Digest 双语演示](YouTube%20Digest%20demo%20bilingual.png)
 
+## v1.2.1 更新
+
+- 一键复制学习心法的结构化 Markdown 内容，或下载为 `.md` 文件。
+- 返回同一个已缓存视频时，自动恢复之前生成的学习心法，不再重复请求 AI。
+
 ## v1.2.0 更新
 
 - 搜索字幕中的单词或短语，并依次查看所有匹配位置。

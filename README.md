@@ -15,6 +15,11 @@ YouTube Digest is a bring-your-own-key project installed locally from GitHub. It
 
 ![YouTube Digest demo](YouTube%20Digest%20demo.png)
 
+## New in v1.2.1
+
+- Copy a generated Learning Method as structured Markdown or download it as a `.md` file.
+- Restore the saved Learning Method when returning to the same cached video, without another AI request.
+
 ## New in v1.2.0
 
 - Search transcript words or phrases and move through every match.

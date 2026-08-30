@@ -227,7 +227,11 @@
           <div class="section">
             <div class="section-header">
               <div class="section-title">学习心法</div>
-              <button class="enhance-btn" id="generateLearningBtn" type="button">生成</button>
+              <div class="learning-actions">
+                <button class="enhance-btn" id="copyLearningBtn" type="button" hidden>复制</button>
+                <button class="enhance-btn" id="downloadLearningBtn" type="button" hidden>下载</button>
+                <button class="enhance-btn" id="generateLearningBtn" type="button">生成</button>
+              </div>
             </div>
             <div id="learningStatus" class="notes-intro">点击“生成”，把当前视频重构成适合初学者学习、复习和自测的教程。</div>
             <article id="learningResult" class="learning-result" hidden></article>

@@ -66,6 +66,7 @@
 }
 
 .learning-result { margin-top: 16px; line-height: 1.75; }
+.learning-actions { display: flex; gap: 6px; }
 .learning-result h3 { margin: 20px 0 8px; color: var(--text); }
 .learning-result p { margin: 6px 0 10px; }
 .learning-result ul, .learning-result ol { padding-left: 22px; }
