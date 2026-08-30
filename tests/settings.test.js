@@ -51,6 +51,24 @@ test("legacy custom migration clears only the AI key and is idempotent", () => {
   assert.equal(configuredDeepSeek.aiApiKey, "new-deepseek-key");
 });
 
+
+test("Obsidian sync settings are normalized safely", () => {
+  const normalized = settings.normalize({
+    obsidianEnabled: true,
+    obsidianVault: "  My Vault  ",
+    obsidianFolder: "/学习心法/",
+  });
+
+  assert.equal(normalized.obsidianEnabled, true);
+  assert.equal(normalized.obsidianVault, "My Vault");
+  assert.equal(normalized.obsidianFolder, "学习心法");
+
+  const defaults = settings.normalize({});
+  assert.equal(defaults.obsidianEnabled, false);
+  assert.equal(defaults.obsidianVault, "");
+  assert.equal(defaults.obsidianFolder, "学习心法");
+});
+
 test("Supadata receives a canonical YouTube URL", () => {
   assert.equal(
     settings.canonicalYouTubeUrl("ydTeb_I0b94"),
