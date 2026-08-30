@@ -26,6 +26,14 @@ const YTD_OPTIONS = (() => {
       deepseekHelpSuffix: ".",
       privacyNote:
         "When you use AI features, DeepSeek receives the video transcript and relevant video context. Review DeepSeek's terms and pricing before saving.",
+      obsidianSync: "Obsidian sync",
+      obsidianEnabledLabel:
+        "Automatically update Obsidian after generating a learning guide",
+      obsidianVaultLabel: "Vault name or ID",
+      obsidianFolderLabel: "Folder inside the vault",
+      obsidianHelp:
+        "Uses the official Obsidian URI. The same video overwrites the same Markdown note.",
+      addObsidianVault: "Add an Obsidian vault name or ID, or turn off Obsidian sync.",
       saveSettings: "Save settings",
       localRemix: "Local remix",
       customizationTitle: "Want to use another AI model?",
@@ -95,6 +103,12 @@ const YTD_OPTIONS = (() => {
       deepseekHelpSuffix: "。",
       privacyNote:
         "使用 AI 功能时，DeepSeek 会收到视频字幕及相关视频上下文。保存前请查看 DeepSeek 的服务条款和价格。",
+      obsidianSync: "Obsidian 同步",
+      obsidianEnabledLabel: "生成学习心法后自动更新 Obsidian",
+      obsidianVaultLabel: "Vault 名称或 ID",
+      obsidianFolderLabel: "Vault 内的文件夹",
+      obsidianHelp: "使用 Obsidian 官方 URI；同一视频会覆盖更新同一份 Markdown 笔记。",
+      addObsidianVault: "请填写 Obsidian Vault 名称或 ID，或关闭 Obsidian 同步。",
       saveSettings: "保存设置",
       localRemix: "本地改造",
       customizationTitle: "想使用其他 AI 模型？",
@@ -350,6 +364,9 @@ const YTD_OPTIONS = (() => {
     const form = doc.getElementById("settingsForm");
     const aiApiKeyInput = doc.getElementById("aiApiKey");
     const supadataApiKeyInput = doc.getElementById("supadataApiKey");
+    const obsidianEnabledInput = doc.getElementById("obsidianEnabled");
+    const obsidianVaultInput = doc.getElementById("obsidianVault");
+    const obsidianFolderInput = doc.getElementById("obsidianFolder");
     const customizationPrompt = doc.getElementById("customizationPrompt");
     const copyCustomizationPromptBtn = doc.getElementById(
       "copyCustomizationPromptBtn",
@@ -422,6 +439,9 @@ const YTD_OPTIONS = (() => {
 
         aiApiKeyInput.value = settings.aiApiKey;
         supadataApiKeyInput.value = settings.supadataApiKey;
+        obsidianEnabledInput.checked = settings.obsidianEnabled;
+        obsidianVaultInput.value = settings.obsidianVault;
+        obsidianFolderInput.value = settings.obsidianFolder;
         if (migration.migrated) {
           await storage.set({ [settingsApi.STORAGE_KEY]: settings });
           setStatus(saveStatus, "migrationWarning");
@@ -447,6 +467,9 @@ const YTD_OPTIONS = (() => {
       const settings = settingsApi.normalize({
         aiApiKey: aiApiKeyInput.value,
         supadataApiKey: supadataApiKeyInput.value,
+        obsidianEnabled: obsidianEnabledInput.checked,
+        obsidianVault: obsidianVaultInput.value,
+        obsidianFolder: obsidianFolderInput.value,
       });
 
       if (!settings.supadataApiKey) {
@@ -455,6 +478,10 @@ const YTD_OPTIONS = (() => {
       }
       if (!settings.aiApiKey) {
         setStatus(saveStatus, "addDeepseekKey");
+        return;
+      }
+      if (settings.obsidianEnabled && !settings.obsidianVault) {
+        setStatus(saveStatus, "addObsidianVault");
         return;
       }
 
