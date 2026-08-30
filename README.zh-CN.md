@@ -17,6 +17,13 @@ YouTube Digest 是一个需要自行提供 API Key 的开源项目，通过 GitH
 
 ![YouTube Digest 双语演示](YouTube%20Digest%20demo%20bilingual.png)
 
+## v1.3.0 更新
+
+- 学习心法改为两阶段生成：先生成完整细致的教程，再单独生成图解与知识检测，避免正文被压缩。
+- 对齐原版 `youtube-learning-method` 结构，包含可点击目录、因果机制、类比与边界、例子、常见误区、应用方法、限制、串联案例和复习路线。
+- 侧边栏展示 2–5 张本地安全绘制的 SVG 概念图；复制、下载和 Obsidian Markdown 会写入对应的 Mermaid 图解。
+- 固定生成 10 道四选一知识检测题，并在作答后立即显示答案与解析。
+
 ## v1.2.2 更新
 
 - 学习心法生成完成后，通过 Obsidian Local REST API 自动创建或覆盖 Markdown 笔记。

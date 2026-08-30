@@ -904,33 +904,258 @@ function parseLooseJson(text) {
 // DEEPSEEK ANALYSIS
 // ============================================================
 
-/** Generate a beginner-friendly study guide from the already cached digest. */
+const LEARNING_SCHEMA_VERSION = 2;
+
+function learningString(value) {
+  return typeof value === "string" ? value.trim() : "";
+}
+
+function learningStrings(value) {
+  return Array.isArray(value)
+    ? value.map(learningString).filter(Boolean)
+    : [];
+}
+
+function normalizeLearningTutorial(value) {
+  if (!value || typeof value !== "object") {
+    throw new Error("DeepSeek returned an invalid learning tutorial.");
+  }
+  const sections = (Array.isArray(value.sections) ? value.sections : [])
+    .map((section, sectionIndex) => {
+      const rawSubtopics = Array.isArray(section?.subtopics)
+        ? section.subtopics
+        : [section];
+      const subtopics = rawSubtopics
+        .map((subtopic, subtopicIndex) => ({
+          title:
+            learningString(subtopic?.title) ||
+            `知识点 ${sectionIndex + 1}.${subtopicIndex + 1}`,
+          term: learningString(subtopic?.term),
+          definition:
+            learningString(subtopic?.definition) ||
+            learningString(subtopic?.concept),
+          why: learningString(subtopic?.why),
+          mechanism:
+            learningString(subtopic?.mechanism) ||
+            learningString(subtopic?.plainExplanation),
+          analogy: learningString(subtopic?.analogy),
+          analogyBoundary: learningString(subtopic?.analogyBoundary),
+          example: learningString(subtopic?.example),
+          misconceptions: learningStrings(subtopic?.misconceptions),
+          application:
+            learningString(subtopic?.application) ||
+            learningString(subtopic?.applicationMethod),
+          limitations: learningStrings(subtopic?.limitations),
+        }))
+        .filter((subtopic) => subtopic.definition || subtopic.mechanism);
+      return {
+        title: learningString(section?.title) || `第 ${sectionIndex + 1} 章`,
+        overview: learningString(section?.overview),
+        whyItMatters: learningString(section?.whyItMatters),
+        subtopics,
+        summary: learningString(section?.summary),
+      };
+    })
+    .filter((section) => section.subtopics.length > 0);
+  if (sections.length < 3) {
+    throw new Error("DeepSeek did not produce enough detailed tutorial chapters.");
+  }
+
+  const rawCaseStudy = value.caseStudy;
+  const caseStudy =
+    rawCaseStudy && typeof rawCaseStudy === "object"
+      ? {
+          title: learningString(rawCaseStudy.title) || "完整串联案例",
+          scenario: learningString(rawCaseStudy.scenario),
+          steps: learningStrings(rawCaseStudy.steps),
+          conclusion: learningString(rawCaseStudy.conclusion),
+        }
+      : {
+          title: "完整串联案例",
+          scenario: learningString(rawCaseStudy),
+          steps: [],
+          conclusion: "",
+        };
+
+  return {
+    schemaVersion: LEARNING_SCHEMA_VERSION,
+    coverageNote: learningString(value.coverageNote),
+    learningGoals: learningStrings(value.learningGoals),
+    framework: learningString(value.framework),
+    frameworkSteps: learningStrings(value.frameworkSteps),
+    sections,
+    caseStudy,
+    reviewPath: learningStrings(value.reviewPath),
+    finalMindset: learningString(value.finalMindset),
+    toc: sections.map((section, index) => ({
+      title: section.title,
+      anchor: `chapter-${index + 1}`,
+    })),
+  };
+}
+
+function normalizeLearningExtras(value) {
+  if (!value || typeof value !== "object") {
+    throw new Error("DeepSeek returned invalid diagrams and questions.");
+  }
+  const diagrams = (Array.isArray(value.diagrams) ? value.diagrams : [])
+    .map((diagram, index) => ({
+      id: `diagram-${index + 1}`,
+      title: learningString(diagram?.title) || `概念图 ${index + 1}`,
+      type: ["flow", "cycle", "comparison"].includes(diagram?.type)
+        ? diagram.type
+        : "flow",
+      sectionIndex: Math.max(
+        0,
+        Math.trunc(Number(diagram?.sectionIndex) || 0),
+      ),
+      caption: learningString(diagram?.caption),
+      takeaway: learningString(diagram?.takeaway),
+      nodes: (Array.isArray(diagram?.nodes) ? diagram.nodes : [])
+        .slice(0, 5)
+        .map((node) => ({
+          label: learningString(node?.label).slice(0, 16),
+          detail: learningString(node?.detail).slice(0, 36),
+        }))
+        .filter((node) => node.label),
+    }))
+    .filter((diagram) => diagram.nodes.length >= 2)
+    .slice(0, 5);
+  if (diagrams.length < 2) {
+    throw new Error("DeepSeek did not produce enough usable concept diagrams.");
+  }
+
+  const quiz = (Array.isArray(value.quiz) ? value.quiz : [])
+    .map((question) => ({
+      question: learningString(question?.question),
+      options: learningStrings(question?.options),
+      answerIndex: Number(question?.answerIndex),
+      explanation: learningString(question?.explanation),
+      misconception: learningString(question?.misconception),
+      relatedSection: learningString(question?.relatedSection),
+    }))
+    .filter(
+      (question) =>
+        question.question &&
+        question.options.length === 4 &&
+        Number.isInteger(question.answerIndex) &&
+        question.answerIndex >= 0 &&
+        question.answerIndex < 4 &&
+        question.explanation,
+    );
+  if (quiz.length !== 10) {
+    throw new Error("DeepSeek did not produce exactly 10 valid questions.");
+  }
+  return { diagrams, quiz };
+}
+
+async function requestLearningJson(systemPrompt, userPrompt, maxTokens) {
+  const { text } = await requestAiCompletion({
+    temperature: 0.25,
+    maxTokens,
+    responseFormat: { type: "json_object" },
+    messages: [
+      { role: "system", content: systemPrompt },
+      { role: "user", content: userPrompt },
+    ],
+  });
+  return parseLooseJson(text);
+}
+
+function notifyLearningProgress(title, subtitle) {
+  try {
+    const sent = chrome.runtime.sendMessage({
+      action: "learningProgress",
+      title,
+      subtitle,
+    });
+    sent?.catch?.(() => {});
+  } catch (_error) {
+    // The side panel may have closed while DeepSeek was working.
+  }
+}
+
+/** Generate a Skill-quality study guide from the already cached Digest. */
 async function handleGenerateLearningMethod(message) {
   const settings = await getSettings();
   if (!settings.aiApiKey) {
-    return { success: false, error: "DeepSeek API key not configured. Open YouTube Digest Settings." };
+    return {
+      success: false,
+      error: "DeepSeek API key not configured. Open YouTube Digest Settings.",
+    };
   }
   const transcript = message.transcriptText || "";
   const digest = message.digestText || "";
-  if (!transcript && !digest) return { success: false, error: "No cached digest content is available." };
+  if (!transcript && !digest) {
+    return {
+      success: false,
+      error: "No cached digest content is available.",
+    };
+  }
   const source = digest || transcript;
-  const systemPrompt = `你是一位耐心的中文老师。请把视频 Digest 内容重构成真正能学会、复习和自测的初学者教程。
-要求：口语化中文；首次出现术语同时给出英文和中文；重要概念回答是什么、为什么、怎样运作、怎样使用；用类比建立直觉但标明类比不是事实；保留原文事实、因果关系、限制条件和案例；不要凭标题补写。
-输出严格为 JSON，不要 Markdown 代码围栏，字段如下：
-{"learningGoals":[""],"toc":[{"title":"","anchor":""}],"framework":"","sections":[{"title":"","concept":"","plainExplanation":"","example":"","misconceptions":[""],"application":""}],"caseStudy":"","quiz":[{"question":"","options":["","","",""],"answerIndex":0,"explanation":""}],"reviewPath":[""],"finalMindset":""}
-必须生成 3-8 个章节和恰好 10 道四选一题。选项从 A 到 D，错误选项对应真实误区。答案和解释用于点击后展示。`;
-  const userPrompt = `视频标题：${message.videoTitle || "未知"}\n\n已有 Digest 内容：\n${source}`;
+  const tutorialPrompt = `你是一位擅长把教学视频重构成中文深度教程的老师。只使用用户给出的 Digest，不凭标题补写事实。
+面向无技术背景的初学者，保留视频论证顺序、因果链、限制和关键案例，删除寒暄与重复口头语。首次出现术语时同时解释英文全称、中文含义和作用。每个重要知识点必须回答：它是什么、为什么出现、怎样运作、实际怎样使用；先用具体类比建立直觉，再明确类比边界，不能把类比当事实。
+教程必须足够完整细致：3-8 个主章节，每章 2-5 个子主题；每个子主题包含定义、原因、机制、类比、类比边界、例子、真实常见误区、应用方法和限制。最后给出一个把主要概念串起来的完整案例、可执行复习路线和最终心法。
+输出严格 JSON，不要 Markdown 围栏。结构：
+{"coverageNote":"覆盖范围说明","learningGoals":["4-8 项"],"framework":"整部视频主线","frameworkSteps":["3-7 步"],"sections":[{"title":"按视频顺序的章节名","overview":"章节概览","whyItMatters":"为什么重要","subtopics":[{"title":"知识点","term":"英文术语与中文名","definition":"是什么","why":"为什么出现","mechanism":"怎样运作，写清因果链","analogy":"通俗类比","analogyBoundary":"类比的对应关系与边界","example":"忠于视频的例子；教学补充需标明","misconceptions":["2-4 个真实误区"],"application":"怎样使用","limitations":["限制或适用边界"]}],"summary":"本章小结"}],"caseStudy":{"title":"案例标题","scenario":"真实任务","steps":["串联步骤"],"conclusion":"案例结论"},"reviewPath":["可执行安排"],"finalMindset":"准确重建整部视频核心模型的一段话"}}`;
+  const extrasPrompt = `你是中文教程的图解编辑和出题老师。根据已完成教程设计概念图规格和知识检测。
+图只解释难以用短段落讲清的关系，不做装饰。生成 2-5 张图，覆盖全局框架及关键流程、循环或对比。每张图使用 2-5 个节点；label 最多 10 个汉字，detail 最多 22 个汉字；caption 说明先看哪里，takeaway 说明必须记住什么。type 只能是 flow、cycle、comparison。sectionIndex 为图应插入的章节序号，0 表示全局框架。
+再生成恰好 10 道四选一单选题，覆盖不同章节。错误选项必须对应真实误区，不能明显凑数。解析说明正确原因，并澄清最迷惑的错误选项；答案在作答前不会展示。
+输出严格 JSON，不要 Markdown 围栏。结构：
+{"diagrams":[{"title":"","type":"flow","sectionIndex":0,"caption":"","nodes":[{"label":"","detail":""}],"takeaway":""}],"quiz":[{"question":"","options":["","","",""],"answerIndex":0,"explanation":"","misconception":"最迷惑错误项为何错","relatedSection":"章节名"}]}`;
+
   try {
-    const { text } = await requestAiCompletion({
-      maxTokens: 12000,
-      responseFormat: { type: "json_object" },
-      messages: [{ role: "system", content: systemPrompt }, { role: "user", content: userPrompt }],
-    });
-    const learning = parseLooseJson(text);
-    if (!learning || !Array.isArray(learning.quiz)) throw new Error("DeepSeek returned an invalid learning guide.");
-    return { success: true, learning };
+    notifyLearningProgress("正在生成完整教程（1/2）", "梳理章节、机制、案例、误区与应用边界…");
+    const tutorial = normalizeLearningTutorial(
+      await requestLearningJson(
+        tutorialPrompt,
+        `视频标题：${message.videoTitle || "未知"}\n\n已有 Digest 内容：\n${source}`,
+        12000,
+      ),
+    );
+
+    notifyLearningProgress("正在制作图解与检测（2/2）", "绘制概念关系，并生成 10 道四选一检测题…");
+    const tutorialForExtras = {
+      title: message.videoTitle || "未知",
+      framework: tutorial.framework,
+      frameworkSteps: tutorial.frameworkSteps,
+      sections: tutorial.sections.map((section) => ({
+        title: section.title,
+        overview: section.overview,
+        subtopics: section.subtopics.map((subtopic) => ({
+          title: subtopic.title,
+          definition: subtopic.definition,
+          mechanism: subtopic.mechanism,
+          misconceptions: subtopic.misconceptions,
+        })),
+      })),
+    };
+    const extras = normalizeLearningExtras(
+      await requestLearningJson(
+        extrasPrompt,
+        JSON.stringify(tutorialForExtras),
+        7000,
+      ),
+    );
+    return {
+      success: true,
+      learning: {
+        ...tutorial,
+        ...extras,
+        diagrams: extras.diagrams.map((diagram) => ({
+          ...diagram,
+          sectionIndex: Math.min(
+            diagram.sectionIndex,
+            tutorial.sections.length,
+          ),
+        })),
+      },
+    };
   } catch (error) {
-    return { success: false, error: error.message || "Failed to generate learning method" };
+    return {
+      success: false,
+      error: error.message || "Failed to generate learning method",
+    };
   }
 }
 
@@ -1761,4 +1986,6 @@ globalThis.__YTD_TRANSLATION_TESTING__ = {
   handleTranslateContent,
   closePanelForTab,
   updatePanelForTab,
+  normalizeLearningTutorial,
+  normalizeLearningExtras,
 };

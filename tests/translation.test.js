@@ -517,7 +517,7 @@ test("all AI product requests use DeepSeek non-thinking and JSON behavior", asyn
     "cleanupNoteText",
     "handleExplainSelection",
     "callAiTranslation",
-    "handleGenerateLearningMethod",
+    "requestLearningJson",
   ]) {
     assert.match(
       backgroundSource,

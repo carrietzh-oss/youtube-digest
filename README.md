@@ -15,6 +15,13 @@ YouTube Digest is a bring-your-own-key project installed locally from GitHub. It
 
 ![YouTube Digest demo](YouTube%20Digest%20demo.png)
 
+## New in v1.3.0
+
+- Generate a substantially more complete Learning Method in two stages: detailed tutorial first, then diagrams and knowledge checks.
+- Follow the original `youtube-learning-method` structure with a linked table of contents, causal explanations, analogies and their limits, examples, misconceptions, applications, boundaries, a connected case study, and a review path.
+- Display 2-5 safe locally rendered SVG concept diagrams in the side panel. Copied, downloaded, and Obsidian Markdown includes the same diagrams as Mermaid blocks.
+- Keep exactly 10 four-option knowledge checks with immediate answer explanations.
+
 ## New in v1.2.2
 
 - Automatically create or overwrite Learning Method Markdown notes through Obsidian Local REST API.

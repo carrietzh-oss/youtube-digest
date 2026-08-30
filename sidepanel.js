@@ -286,6 +286,15 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     updateLoading(message.title, message.subtitle);
     sendResponse({ success: true });
   }
+  if (message.action === "learningProgress") {
+    const status = document.getElementById("learningStatus");
+    if (status && isLearningLoading) {
+      status.textContent = [message.title, message.subtitle]
+        .filter(Boolean)
+        .join("：");
+    }
+    sendResponse({ success: true });
+  }
   if (message.action === "noteSaved") {
     // Refresh notes list when a new note is saved
     const filterAll = document
@@ -479,85 +488,203 @@ function learningMarkdownList(items, ordered = false) {
     .join("\n");
 }
 
-function buildLearningMarkdown(data) {
-  const videoUrl = `https://www.youtube.com/watch?v=${currentVideoId}`;
-  const title = currentVideoTitle || `YouTube ${currentVideoId}`;
-  const sections = (Array.isArray(data.sections) ? data.sections : [])
-    .map((section) => {
-      const misconceptions = learningMarkdownList(section.misconceptions);
-      return [
-        `## ${learningMarkdownText(section.title) || "核心知识点"}`,
-        "",
-        `**它是什么：** ${learningMarkdownText(section.concept)}`,
-        "",
-        `**通俗解释：** ${learningMarkdownText(section.plainExplanation)}`,
-        "",
-        `**例子：** ${learningMarkdownText(section.example)}`,
-        "",
-        `**应用：** ${learningMarkdownText(section.application)}`,
-        "",
-        "**常见误区：**",
-        misconceptions,
-      ].join("\n");
-    })
-    .join("\n\n");
+function learningMermaidText(value, maxLength = 48) {
+  return learningMarkdownText(value)
+    .replace(/[\r\n"`\[\]{}<>]/g, " ")
+    .replace(/\s+/g, " ")
+    .slice(0, maxLength);
+}
 
-  const quiz = (Array.isArray(data.quiz) ? data.quiz : [])
+function learningDiagramMermaid(diagram, diagramIndex) {
+  const nodes = (Array.isArray(diagram?.nodes) ? diagram.nodes : []).slice(0, 5);
+  if (nodes.length < 2) return "";
+  const prefix = `d${diagramIndex + 1}`;
+  const lines = ["```mermaid", "flowchart LR"];
+  nodes.forEach((node, index) => {
+    const label = learningMermaidText(node.label, 16) || `步骤 ${index + 1}`;
+    const detail = learningMermaidText(node.detail, 36);
+    lines.push(`  ${prefix}_${index + 1}["${label}${detail ? `<br/>${detail}` : ""}"]`);
+  });
+  for (let index = 0; index < nodes.length - 1; index += 1) {
+    const connector = diagram.type === "comparison" ? "---" : "-->";
+    lines.push(`  ${prefix}_${index + 1} ${connector} ${prefix}_${index + 2}`);
+  }
+  if (diagram.type === "cycle") {
+    lines.push(`  ${prefix}_${nodes.length} --> ${prefix}_1`);
+  }
+  lines.push("```");
+  return lines.join("\n");
+}
+
+function learningDiagramMarkdown(diagram, index) {
+  const mermaid = learningDiagramMermaid(diagram, index);
+  if (!mermaid) return "";
+  return [
+    `### 图解：${learningMarkdownText(diagram.title) || `概念图 ${index + 1}`}`,
+    "",
+    learningMarkdownText(diagram.caption),
+    "",
+    mermaid,
+    "",
+    `> **看图重点：** ${learningMarkdownText(diagram.takeaway)}`,
+  ].join("\n");
+}
+
+function learningDiagramsForSection(data, sectionIndex) {
+  return (Array.isArray(data?.diagrams) ? data.diagrams : [])
+    .map((diagram, index) => ({ diagram, index }))
+    .filter(({ diagram }) => Number(diagram.sectionIndex) === sectionIndex)
+    .map(({ diagram, index }) => learningDiagramMarkdown(diagram, index))
+    .filter(Boolean)
+    .join("\n\n");
+}
+
+function learningSubtopicMarkdown(subtopic, index) {
+  const blocks = [
+    `### ${index + 1}. ${learningMarkdownText(subtopic.title) || "核心知识点"}`,
+  ];
+  const fields = [
+    ["术语", subtopic.term],
+    ["它是什么", subtopic.definition || subtopic.concept],
+    ["为什么会出现", subtopic.why],
+    ["怎样运作", subtopic.mechanism || subtopic.plainExplanation],
+    ["通俗类比", subtopic.analogy],
+    ["类比边界", subtopic.analogyBoundary],
+    ["例子", subtopic.example],
+    ["实际怎样使用", subtopic.application],
+  ];
+  fields.forEach(([label, value]) => {
+    const text = learningMarkdownText(value);
+    if (text) blocks.push("", `**${label}：** ${text}`);
+  });
+  if (Array.isArray(subtopic.misconceptions) && subtopic.misconceptions.length) {
+    blocks.push("", "**常见误区：**", "", learningMarkdownList(subtopic.misconceptions));
+  }
+  if (Array.isArray(subtopic.limitations) && subtopic.limitations.length) {
+    blocks.push("", "**限制与边界：**", "", learningMarkdownList(subtopic.limitations));
+  }
+  return blocks.join("\n");
+}
+
+function learningCaseStudyMarkdown(caseStudy) {
+  if (!caseStudy) return "_暂无_";
+  if (typeof caseStudy === "string") return learningMarkdownText(caseStudy);
+  const blocks = [];
+  if (caseStudy.title) blocks.push(`### ${learningMarkdownText(caseStudy.title)}`);
+  if (caseStudy.scenario) blocks.push("", learningMarkdownText(caseStudy.scenario));
+  if (Array.isArray(caseStudy.steps) && caseStudy.steps.length) {
+    blocks.push("", learningMarkdownList(caseStudy.steps, true));
+  }
+  if (caseStudy.conclusion) {
+    blocks.push("", `**案例结论：** ${learningMarkdownText(caseStudy.conclusion)}`);
+  }
+  return blocks.join("\n") || "_暂无_";
+}
+
+function learningQuizMarkdown(data) {
+  return (Array.isArray(data.quiz) ? data.quiz : [])
     .map((question, index) => {
       const answerIndex = Number(question.answerIndex);
       const options = (Array.isArray(question.options) ? question.options : [])
-        .map((option, optionIndex) =>
-          `- ${String.fromCharCode(65 + optionIndex)}. ${learningMarkdownText(option)}`,
+        .map(
+          (option, optionIndex) =>
+            `- ${String.fromCharCode(65 + optionIndex)}. ${learningMarkdownText(option)}`,
         )
         .join("\n");
       const answer =
-        Array.isArray(question.options) && question.options[answerIndex] !== undefined
+        Array.isArray(question.options) &&
+        question.options[answerIndex] !== undefined
           ? `${String.fromCharCode(65 + answerIndex)}. ${learningMarkdownText(question.options[answerIndex])}`
           : "未提供";
       return [
         `### ${index + 1}. ${learningMarkdownText(question.question)}`,
+        "",
         options,
         "",
         `**答案：** ${answer}`,
         "",
         `**解析：** ${learningMarkdownText(question.explanation)}`,
-      ].join("\n");
+        question.misconception
+          ? `\n**易错点：** ${learningMarkdownText(question.misconception)}`
+          : "",
+      ]
+        .join("\n");
+    })
+    .join("\n\n");
+}
+
+function buildLearningMarkdown(
+  data,
+  {
+    videoId = currentVideoId,
+    videoTitle = currentVideoTitle,
+    channelName = currentChannelName,
+    includeFrontmatter = true,
+  } = {},
+) {
+  const videoUrl = `https://www.youtube.com/watch?v=${videoId}`;
+  const title = videoTitle || `YouTube ${videoId}`;
+  const sections = Array.isArray(data.sections) ? data.sections : [];
+  const toc = sections
+    .map((section, index) => `- [${learningMarkdownText(section.title) || `第 ${index + 1} 章`}](#chapter-${index + 1})`)
+    .join("\n");
+  const sectionMarkdown = sections
+    .map((section, index) => {
+      const subtopics = Array.isArray(section.subtopics)
+        ? section.subtopics
+        : [section];
+      return [
+        `<a id="chapter-${index + 1}"></a>`,
+        "",
+        `## ${index + 1}. ${learningMarkdownText(section.title) || "核心知识点"}`,
+        "",
+        learningMarkdownText(section.overview),
+        section.whyItMatters
+          ? `\n**为什么这一章重要：** ${learningMarkdownText(section.whyItMatters)}`
+          : "",
+        "",
+        learningDiagramsForSection(data, index + 1),
+        "",
+        subtopics.map(learningSubtopicMarkdown).join("\n\n"),
+        section.summary
+          ? `\n> **本章小结：** ${learningMarkdownText(section.summary)}`
+          : "",
+      ]
+        .join("\n");
     })
     .join("\n\n");
 
-  return [
-    "---",
-    `title: ${JSON.stringify(`${title}｜学习心法`)}`,
-    `source: ${JSON.stringify(videoUrl)}`,
-    `youtube_id: ${JSON.stringify(currentVideoId)}`,
-    `channel: ${JSON.stringify(currentChannelName || "")}`,
-    `generated_at: ${JSON.stringify(new Date().toISOString())}`,
-    "tags:",
-    "  - youtube",
-    "  - 学习心法",
-    "---",
-    "",
+  const body = [
     `# ${title}｜学习心法`,
     "",
     `[观看原视频](${videoUrl})`,
+    data.coverageNote ? `\n> **覆盖范围：** ${learningMarkdownText(data.coverageNote)}` : "",
     "",
     "## 学习目标",
     "",
     learningMarkdownList(data.learningGoals),
     "",
+    "## 目录",
+    "",
+    toc || "_暂无_",
+    "",
     "## 全局框架",
     "",
     learningMarkdownText(data.framework),
     "",
-    sections || "_暂无_",
+    learningMarkdownList(data.frameworkSteps, true),
     "",
-    "## 串联案例",
+    learningDiagramsForSection(data, 0),
     "",
-    learningMarkdownText(data.caseStudy),
+    sectionMarkdown || "_暂无_",
+    "",
+    "## 完整串联案例",
+    "",
+    learningCaseStudyMarkdown(data.caseStudy),
     "",
     "## 知识检测",
     "",
-    quiz || "_暂无_",
+    learningQuizMarkdown(data) || "_暂无_",
     "",
     "## 复习路线",
     "",
@@ -567,6 +694,23 @@ function buildLearningMarkdown(data) {
     "",
     learningMarkdownText(data.finalMindset),
     "",
+  ]
+    .join("\n");
+
+  if (!includeFrontmatter) return `${body.trim()}\n`;
+  return [
+    "---",
+    `title: ${JSON.stringify(`${title}｜学习心法`)}`,
+    `source: ${JSON.stringify(videoUrl)}`,
+    `youtube_id: ${JSON.stringify(videoId)}`,
+    `channel: ${JSON.stringify(channelName || "")}`,
+    `generated_at: ${JSON.stringify(new Date().toISOString())}`,
+    "tags:",
+    "  - youtube",
+    "  - 学习心法",
+    "---",
+    "",
+    body,
   ].join("\n");
 }
 
@@ -656,31 +800,195 @@ async function generateLearningMethod() {
   } finally { isLearningLoading = false; }
 }
 
+function renderLearningList(items, className = "") {
+  if (!Array.isArray(items) || items.length === 0) return "";
+  return `<ul${className ? ` class="${className}"` : ""}>${items
+    .map((item) => `<li>${escapeHtml(item)}</li>`)
+    .join("")}</ul>`;
+}
+
+function renderLearningField(label, value) {
+  const text = learningMarkdownText(value);
+  if (!text) return "";
+  return `<div class="learning-field"><div class="learning-field-label">${label}</div><p>${escapeHtml(text)}</p></div>`;
+}
+
+function renderDiagramText(text, x, startY, className, maxChars = 13) {
+  const normalized = learningMarkdownText(text).slice(0, maxChars * 3);
+  const lines = [];
+  for (let index = 0; index < normalized.length; index += maxChars) {
+    lines.push(normalized.slice(index, index + maxChars));
+  }
+  return `<text x="${x}" y="${startY}" text-anchor="middle" class="${className}">${lines
+    .slice(0, 3)
+    .map(
+      (line, index) =>
+        `<tspan x="${x}" dy="${index === 0 ? 0 : 22}">${escapeHtml(line)}</tspan>`,
+    )
+    .join("")}</text>`;
+}
+
+function renderLearningDiagramSvg(diagram, diagramIndex) {
+  const nodes = (Array.isArray(diagram?.nodes) ? diagram.nodes : []).slice(0, 5);
+  if (nodes.length < 2) return "";
+  const width = 900;
+  const height = 270;
+  const margin = 34;
+  const gap = 22;
+  const boxWidth = (width - margin * 2 - gap * (nodes.length - 1)) / nodes.length;
+  const boxHeight = 132;
+  const boxY = 62;
+  const markerId = `learning-arrow-${diagramIndex}`;
+  const colors = ["#E8F0FE", "#F1EAFE", "#E7F7F0", "#FFF2E5", "#FDECEF"];
+  const strokes = ["#93B4F5", "#B9A2F5", "#87D5B4", "#F0B67F", "#E7A0B4"];
+  const connectors = [];
+  const boxes = [];
+  nodes.forEach((node, index) => {
+    const x = margin + index * (boxWidth + gap);
+    const centerX = x + boxWidth / 2;
+    if (index < nodes.length - 1) {
+      const nextX = margin + (index + 1) * (boxWidth + gap);
+      connectors.push(
+        `<line x1="${x + boxWidth}" y1="${boxY + boxHeight / 2}" x2="${nextX - 5}" y2="${boxY + boxHeight / 2}" class="learning-diagram-arrow"${diagram.type === "comparison" ? "" : ` marker-end="url(#${markerId})"`}/>`,
+      );
+    }
+    boxes.push(
+      `<rect x="${x}" y="${boxY}" width="${boxWidth}" height="${boxHeight}" rx="18" fill="${colors[index]}" stroke="${strokes[index]}" stroke-width="2"/>`,
+      renderDiagramText(node.label || `步骤 ${index + 1}`, centerX, boxY + 40, "learning-diagram-label", 10),
+      renderDiagramText(node.detail || "", centerX, boxY + 82, "learning-diagram-detail", 12),
+    );
+  });
+  if (diagram.type === "cycle") {
+    const firstCenter = margin + boxWidth / 2;
+    const lastCenter = width - margin - boxWidth / 2;
+    connectors.push(
+      `<path d="M ${lastCenter} ${boxY + boxHeight + 8} C ${lastCenter} ${height - 18}, ${firstCenter} ${height - 18}, ${firstCenter} ${boxY + boxHeight + 8}" class="learning-diagram-arrow" marker-end="url(#${markerId})"/>`,
+    );
+  }
+  return `<figure class="learning-diagram">
+    <div class="learning-diagram-title">图解：${escapeHtml(diagram.title || `概念图 ${diagramIndex + 1}`)}</div>
+    ${diagram.caption ? `<p class="learning-diagram-caption">${escapeHtml(diagram.caption)}</p>` : ""}
+    <svg viewBox="0 0 ${width} ${height}" role="img" aria-label="${escapeHtml(diagram.title || "学习概念图")}">
+      <defs><marker id="${markerId}" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto"><path d="M0 0L10 5L0 10Z" fill="#7A7166"/></marker></defs>
+      ${connectors.join("")}${boxes.join("")}
+    </svg>
+    ${diagram.takeaway ? `<figcaption><b>看图重点：</b>${escapeHtml(diagram.takeaway)}</figcaption>` : ""}
+  </figure>`;
+}
+
+function renderLearningDiagrams(data, sectionIndex) {
+  return (Array.isArray(data?.diagrams) ? data.diagrams : [])
+    .map((diagram, index) => ({ diagram, index }))
+    .filter(({ diagram }) => Number(diagram.sectionIndex) === sectionIndex)
+    .map(({ diagram, index }) => renderLearningDiagramSvg(diagram, index))
+    .join("");
+}
+
+function renderLearningSubtopic(subtopic, index) {
+  const misconceptions = renderLearningList(
+    subtopic.misconceptions,
+    "learning-misconceptions",
+  );
+  const limitations = renderLearningList(
+    subtopic.limitations,
+    "learning-limitations",
+  );
+  return `<article class="learning-subtopic">
+    <h4>${index + 1}. ${escapeHtml(subtopic.title || "核心知识点")}</h4>
+    ${renderLearningField("术语", subtopic.term)}
+    ${renderLearningField("它是什么", subtopic.definition || subtopic.concept)}
+    ${renderLearningField("为什么会出现", subtopic.why)}
+    ${renderLearningField("怎样运作", subtopic.mechanism || subtopic.plainExplanation)}
+    ${renderLearningField("通俗类比", subtopic.analogy)}
+    ${renderLearningField("类比边界", subtopic.analogyBoundary)}
+    ${renderLearningField("例子", subtopic.example)}
+    ${misconceptions ? `<div class="learning-field"><div class="learning-field-label">常见误区</div>${misconceptions}</div>` : ""}
+    ${renderLearningField("实际怎样使用", subtopic.application)}
+    ${limitations ? `<div class="learning-field"><div class="learning-field-label">限制与边界</div>${limitations}</div>` : ""}
+  </article>`;
+}
+
+function renderLearningCaseStudy(caseStudy) {
+  if (!caseStudy) return "";
+  if (typeof caseStudy === "string") return `<p>${escapeHtml(caseStudy)}</p>`;
+  return `<div class="learning-case-study">
+    ${caseStudy.title ? `<h4>${escapeHtml(caseStudy.title)}</h4>` : ""}
+    ${caseStudy.scenario ? `<p>${escapeHtml(caseStudy.scenario)}</p>` : ""}
+    ${Array.isArray(caseStudy.steps) ? `<ol>${caseStudy.steps.map((step) => `<li>${escapeHtml(step)}</li>`).join("")}</ol>` : ""}
+    ${caseStudy.conclusion ? `<p class="learning-summary"><b>案例结论：</b>${escapeHtml(caseStudy.conclusion)}</p>` : ""}
+  </div>`;
+}
+
 function renderLearningMethod(data) {
   const el = document.getElementById("learningResult");
   if (!el) return;
-  const list = (items, render) => (Array.isArray(items) ? items : []).map(render).join("");
+  const sections = Array.isArray(data.sections) ? data.sections : [];
+  const toc = sections
+    .map(
+      (section, index) =>
+        `<button type="button" class="learning-toc-link" data-learning-target="learning-chapter-${index + 1}">${index + 1}. ${escapeHtml(section.title || `第 ${index + 1} 章`)}</button>`,
+    )
+    .join("");
+  const sectionHtml = sections
+    .map((section, index) => {
+      const subtopics = Array.isArray(section.subtopics)
+        ? section.subtopics
+        : [section];
+      return `<section id="learning-chapter-${index + 1}" class="learning-chapter">
+        <h3>${index + 1}. ${escapeHtml(section.title || "核心知识点")}</h3>
+        ${section.overview ? `<p class="learning-overview">${escapeHtml(section.overview)}</p>` : ""}
+        ${renderLearningField("为什么这一章重要", section.whyItMatters)}
+        ${renderLearningDiagrams(data, index + 1)}
+        ${subtopics.map(renderLearningSubtopic).join("")}
+        ${section.summary ? `<p class="learning-summary"><b>本章小结：</b>${escapeHtml(section.summary)}</p>` : ""}
+      </section>`;
+    })
+    .join("");
+  const quiz = (Array.isArray(data.quiz) ? data.quiz : [])
+    .map(
+      (question, index) =>
+        `<div class="learning-quiz"><p><b>${index + 1}. ${escapeHtml(question.question)}</b></p>${(Array.isArray(question.options) ? question.options : []).map((option, optionIndex) => `<button class="learning-option" data-answer="${optionIndex === Number(question.answerIndex)}">${String.fromCharCode(65 + optionIndex)}. ${escapeHtml(option)}</button>`).join("")}<p class="learning-feedback" hidden>${escapeHtml([question.explanation, question.misconception ? `易错点：${question.misconception}` : ""].filter(Boolean).join(" "))}</p></div>`,
+    )
+    .join("");
+
   el.innerHTML = `
-    <h3>学习目标</h3><ul>${list(data.learningGoals, x => `<li>${escapeHtml(x)}</li>`)}</ul>
-    <h3>全局框架</h3><p>${escapeHtml(data.framework || "")}</p>
-    ${list(data.sections, s => `<section><h3>${escapeHtml(s.title)}</h3><p><b>它是什么：</b>${escapeHtml(s.concept)}</p><p><b>通俗解释：</b>${escapeHtml(s.plainExplanation)}</p><p><b>例子：</b>${escapeHtml(s.example)}</p><p><b>应用：</b>${escapeHtml(s.application)}</p><p><b>常见误区：</b>${list(s.misconceptions, x => `<span class="learning-chip">${escapeHtml(x)}</span>`)}</p></section>`)}
-    <h3>串联案例</h3><p>${escapeHtml(data.caseStudy || "")}</p>
-    <h3>知识检测</h3>${list(data.quiz, (q, i) => `<div class="learning-quiz"><p><b>${i + 1}. ${escapeHtml(q.question)}</b></p>${list(q.options, (o, j) => `<button class="learning-option" data-answer="${j === Number(q.answerIndex)}">${String.fromCharCode(65 + j)}. ${escapeHtml(o)}</button>`)}<p class="learning-feedback" hidden>${escapeHtml(q.explanation || "")}</p></div>`)}
-    <h3>复习路线</h3><ol>${list(data.reviewPath, x => `<li>${escapeHtml(x)}</li>`)}</ol>
-    <h3>最终心法</h3><p>${escapeHtml(data.finalMindset || "")}</p>`;
+    ${data.coverageNote ? `<p class="learning-coverage"><b>覆盖范围：</b>${escapeHtml(data.coverageNote)}</p>` : ""}
+    <h3>学习目标</h3>${renderLearningList(data.learningGoals)}
+    <h3>目录</h3><nav class="learning-toc" aria-label="学习心法目录">${toc}</nav>
+    <section class="learning-framework"><h3>全局框架</h3><p>${escapeHtml(data.framework || "")}</p>${Array.isArray(data.frameworkSteps) ? `<ol>${data.frameworkSteps.map((step) => `<li>${escapeHtml(step)}</li>`).join("")}</ol>` : ""}${renderLearningDiagrams(data, 0)}</section>
+    ${sectionHtml}
+    <h3>完整串联案例</h3>${renderLearningCaseStudy(data.caseStudy)}
+    <h3>知识检测</h3>${quiz}
+    <h3>复习路线</h3><ol>${(Array.isArray(data.reviewPath) ? data.reviewPath : []).map((item) => `<li>${escapeHtml(item)}</li>`).join("")}</ol>
+    <div class="learning-final"><h3>最终心法</h3><p>${escapeHtml(data.finalMindset || "")}</p></div>`;
   el.hidden = false;
   setLearningActionsVisible(true);
-  el.querySelectorAll(".learning-option").forEach((button) => button.addEventListener("click", () => {
-    const correct = button.dataset.answer === "true";
-    button.classList.add(correct ? "correct" : "wrong");
-    const feedback = button.parentElement.querySelector(".learning-feedback");
-    if (feedback) {
-      const correctText = button.parentElement.querySelector('[data-answer="true"]')?.textContent || "";
-      feedback.textContent = `${correct ? "回答正确。" : `回答错误，正确答案是 ${correctText}。`} ${feedback.textContent}`;
-      feedback.hidden = false;
-    }
-    button.parentElement.querySelectorAll(".learning-option").forEach((b) => { b.disabled = true; if (b.dataset.answer === "true") b.classList.add("correct"); });
-  }));
+  el.querySelectorAll(".learning-toc-link").forEach((button) => {
+    button.addEventListener("click", () => {
+      document.getElementById(button.dataset.learningTarget)?.scrollIntoView({
+        behavior: "smooth",
+        block: "start",
+      });
+    });
+  });
+  el.querySelectorAll(".learning-option").forEach((button) =>
+    button.addEventListener("click", () => {
+      const correct = button.dataset.answer === "true";
+      button.classList.add(correct ? "correct" : "wrong");
+      const quizEl = button.closest(".learning-quiz");
+      const feedback = quizEl?.querySelector(".learning-feedback");
+      if (feedback) {
+        const correctText =
+          quizEl.querySelector('[data-answer="true"]')?.textContent || "";
+        feedback.textContent = `${correct ? "回答正确。" : `回答错误，正确答案是 ${correctText}。`} ${feedback.textContent}`;
+        feedback.hidden = false;
+      }
+      quizEl?.querySelectorAll(".learning-option").forEach((option) => {
+        option.disabled = true;
+        if (option.dataset.answer === "true") option.classList.add("correct");
+      });
+    }),
+  );
 }
 
 function setLearningActionsVisible(visible) {
@@ -704,45 +1012,12 @@ function resetLearningMethodUI() {
 
 function learningMethodToMarkdown(data, videoTitle = "", videoId = "") {
   if (!data) return "";
-  const lines = [`# ${videoTitle || "学习心法"}`];
-  if (videoId) lines.push("", `视频：https://www.youtube.com/watch?v=${videoId}`);
-  const addList = (heading, items, ordered = false) => {
-    if (!Array.isArray(items) || items.length === 0) return;
-    lines.push("", `## ${heading}`, "");
-    items.forEach((item, index) => lines.push(`${ordered ? `${index + 1}.` : "-"} ${item || ""}`));
-  };
-
-  addList("学习目标", data.learningGoals);
-  if (data.framework) lines.push("", "## 全局框架", "", data.framework);
-  (Array.isArray(data.sections) ? data.sections : []).forEach((section) => {
-    lines.push("", `## ${section.title || "核心概念"}`);
-    if (section.concept) lines.push("", `**它是什么：** ${section.concept}`);
-    if (section.plainExplanation) lines.push("", `**通俗解释：** ${section.plainExplanation}`);
-    if (section.example) lines.push("", `**例子：** ${section.example}`);
-    if (section.application) lines.push("", `**应用：** ${section.application}`);
-    if (Array.isArray(section.misconceptions) && section.misconceptions.length) {
-      lines.push("", "**常见误区：**", "");
-      section.misconceptions.forEach((item) => lines.push(`- ${item}`));
-    }
+  return buildLearningMarkdown(data, {
+    videoId,
+    videoTitle,
+    channelName: currentChannelName,
+    includeFrontmatter: false,
   });
-  if (data.caseStudy) lines.push("", "## 串联案例", "", data.caseStudy);
-  if (Array.isArray(data.quiz) && data.quiz.length) {
-    lines.push("", "## 知识检测");
-    data.quiz.forEach((question, index) => {
-      lines.push("", `### ${index + 1}. ${question.question || ""}`, "");
-      (Array.isArray(question.options) ? question.options : []).forEach((option, optionIndex) => {
-        lines.push(`- ${String.fromCharCode(65 + optionIndex)}. ${option}`);
-      });
-      const answerIndex = Number(question.answerIndex);
-      if (Number.isInteger(answerIndex) && answerIndex >= 0) {
-        lines.push("", `**答案：** ${String.fromCharCode(65 + answerIndex)}`);
-      }
-      if (question.explanation) lines.push("", `**解析：** ${question.explanation}`);
-    });
-  }
-  addList("复习路线", data.reviewPath, true);
-  if (data.finalMindset) lines.push("", "## 最终心法", "", data.finalMindset);
-  return `${lines.join("\n").trim()}\n`;
 }
 
 function copyLearningMethod() {
@@ -756,7 +1031,7 @@ function copyLearningMethod() {
 function downloadLearningMethod() {
   if (!currentLearning) return;
   const markdown = learningMethodToMarkdown(currentLearning, currentVideoTitle, currentVideoId);
-  const filename = `${sanitizeFilename(currentVideoTitle)}-学习心法.md`;
+  const filename = `${sanitizeObsidianFileName(currentVideoTitle)}-学习心法.md`;
   downloadTextFile(markdown, filename, "text/markdown;charset=utf-8");
 }
 
