@@ -17,7 +17,21 @@ test("manifest uses minimized install-time permissions", () => {
   assert.ok(!manifest.permissions.includes("activeTab"));
   assert.ok(manifest.host_permissions.includes("https://api.deepseek.com/*"));
   assert.equal(Object.hasOwn(manifest, "optional_host_permissions"), false);
-  assert.equal(manifest.version, "1.2.1");
+  assert.equal(manifest.version, "1.2.2");
+});
+
+test("Obsidian sync uses authenticated Local REST API writes", () => {
+  const manifest = JSON.parse(read("manifest.json"));
+  const optionsPage = read("options.html");
+  const sidepanelScript = read("sidepanel.js");
+
+  assert.ok(manifest.host_permissions.includes("http://127.0.0.1:27123/*"));
+  assert.ok(manifest.host_permissions.includes("https://127.0.0.1:27124/*"));
+  assert.match(optionsPage, /id="obsidianApiKey"[^>]*type="password"/);
+  assert.match(sidepanelScript, /method:\s*"PUT"/);
+  assert.match(sidepanelScript, /Authorization:\s*`Bearer \$\{settings\.obsidianApiKey\}`/);
+  assert.match(sidepanelScript, /"Content-Type":\s*"text\/markdown; charset=utf-8"/);
+  assert.doesNotMatch(sidepanelScript, /obsidian:\/\/new/);
 });
 
 test("release copy documents current scope without em dashes", () => {
