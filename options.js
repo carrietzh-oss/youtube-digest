@@ -34,7 +34,7 @@ const YTD_OPTIONS = (() => {
         "Use HTTPS (requires trusting the Local REST API certificate)",
       obsidianFolderLabel: "Folder inside the vault",
       obsidianHelp:
-        "Install and enable Local REST API in the target vault. The default HTTP endpoint must be enabled in that plugin's settings.",
+        "Install and enable Local REST API in the target vault. The extension tries your selected endpoint first, then the other fixed local endpoint. Enable HTTP Server for HTTP fallback, or trust the plugin certificate for HTTPS.",
       obsidianPluginLink: "Open plugin instructions",
       addObsidianApiKey:
         "Add an Obsidian Local REST API key, or turn off Obsidian sync.",
@@ -113,7 +113,7 @@ const YTD_OPTIONS = (() => {
       obsidianUseHttpsLabel: "使用 HTTPS（需要先信任 Local REST API 证书）",
       obsidianFolderLabel: "Vault 内的文件夹",
       obsidianHelp:
-        "请在目标 Vault 中安装并启用 Local REST API。默认连接方式还需要在该插件设置中启用 HTTP Server。",
+        "请在目标 Vault 中安装并启用 Local REST API。扩展会先尝试你选择的端点，再尝试另一个固定本机端点；使用 HTTP 需要启用 HTTP Server，使用 HTTPS 需要信任插件证书。",
       obsidianPluginLink: "打开插件安装说明",
       addObsidianApiKey: "请填写 Obsidian Local REST API Key，或关闭 Obsidian 同步。",
       saveSettings: "保存设置",

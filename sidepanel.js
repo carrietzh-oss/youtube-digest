@@ -724,6 +724,41 @@ function sanitizeObsidianFileName(value) {
   return (normalized || `YouTube ${currentVideoId}`).slice(0, 100);
 }
 
+function obsidianEndpointLabel(baseUrl) {
+  return baseUrl.startsWith("https://") ? "HTTPS 27124" : "HTTP 27123";
+}
+
+function obsidianEndpointCandidates(settings) {
+  const preferred = YTD_SETTINGS.obsidianApiBaseUrl(settings);
+  const alternate = preferred.startsWith("https://")
+    ? "http://127.0.0.1:27123"
+    : "https://127.0.0.1:27124";
+  return [preferred, alternate];
+}
+
+function describeObsidianResponse(baseUrl, response) {
+  const label = obsidianEndpointLabel(baseUrl);
+  if (response.status === 401 || response.status === 403) {
+    return `${label} 的 Local REST API Key 无效（HTTP ${response.status}）`;
+  }
+  if (response.status === 404 || response.status === 405) {
+    return `${label} 不可用或未启用（HTTP ${response.status}）`;
+  }
+  return `${label} 返回 HTTP ${response.status}`;
+}
+
+function describeObsidianNetworkError(baseUrl) {
+  const label = obsidianEndpointLabel(baseUrl);
+  if (baseUrl.startsWith("https://")) {
+    return `${label} 无法连接，请确认 Obsidian 正在运行，并已信任 Local REST API 的自签名证书`;
+  }
+  return `${label} 无法连接，请确认 Obsidian 正在运行，并在 Local REST API 设置中启用 HTTP Server`;
+}
+
+function shouldTryAlternateObsidianEndpoint(response) {
+  return [404, 405, 502, 503, 504].includes(response.status);
+}
+
 async function syncLearningToObsidian(data) {
   const stored = await chrome.storage.local.get(YTD_SETTINGS.STORAGE_KEY);
   const settings = YTD_SETTINGS.normalize(stored[YTD_SETTINGS.STORAGE_KEY]);
@@ -742,26 +777,50 @@ async function syncLearningToObsidian(data) {
     .filter(Boolean)
     .map((segment) => encodeURIComponent(segment))
     .join("/");
-  const response = await fetch(
-    `${YTD_SETTINGS.obsidianApiBaseUrl(settings)}/vault/${encodedPath}`,
-    {
-      method: "PUT",
-      headers: {
-        Authorization: `Bearer ${settings.obsidianApiKey}`,
-        "Content-Type": "text/markdown; charset=utf-8",
-      },
-      body: buildLearningMarkdown(data),
-      credentials: "omit",
-    },
-  );
 
-  if (response.status === 401) {
-    throw new Error("Local REST API Key 无效");
+  const errors = [];
+  for (const baseUrl of obsidianEndpointCandidates(settings)) {
+    try {
+      const response = await fetch(`${baseUrl}/vault/${encodedPath}`, {
+        method: "PUT",
+        headers: {
+          Authorization: `Bearer ${settings.obsidianApiKey}`,
+          "Content-Type": "text/markdown; charset=utf-8",
+        },
+        body: buildLearningMarkdown(data),
+        credentials: "omit",
+      });
+
+      if (response.ok) {
+        return { enabled: true, filePath, endpoint: baseUrl };
+      }
+
+      const description = describeObsidianResponse(baseUrl, response);
+      errors.push(description);
+      if (response.status === 401 || response.status === 403) {
+        const responseError = new Error(description);
+        responseError.isObsidianResponseError = true;
+        throw responseError;
+      }
+      if (!shouldTryAlternateObsidianEndpoint(response)) {
+        const responseError = new Error(description);
+        responseError.isObsidianResponseError = true;
+        throw responseError;
+      }
+    } catch (error) {
+      if (error?.isObsidianResponseError) throw error;
+      const description =
+        error?.message &&
+        !/Failed to fetch|NetworkError|Load failed|ERR_/i.test(error.message)
+          ? error.message
+          : describeObsidianNetworkError(baseUrl);
+      if (!errors.includes(description)) errors.push(description);
+    }
   }
-  if (!response.ok) {
-    throw new Error(`Local REST API 返回 HTTP ${response.status}`);
-  }
-  return { enabled: true, filePath };
+
+  throw new Error(
+    `${errors.join("；")}。请确认 Obsidian 已打开、Local REST API 已启用，并检查 HTTP Server 或 HTTPS 证书设置。`,
+  );
 }
 
 async function generateLearningMethod() {
@@ -3490,4 +3549,6 @@ globalThis.__YTD_TRANSCRIPT_TESTING__ = {
   renderSubtitleInlineMarkup,
   renderTranscriptSegmentContent,
   learningMethodToMarkdown,
+  obsidianEndpointCandidates,
+  syncLearningToObsidian,
 };

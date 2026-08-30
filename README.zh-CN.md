@@ -110,7 +110,7 @@ YouTube Digest 需要你在自己的服务账号中准备两个 Key：
 
 1. 在目标 Obsidian Vault 中安装并启用社区插件 [Local REST API](https://github.com/coddingtonbear/obsidian-local-rest-api)。
 2. 打开 Obsidian 的 **设置 → Local REST API**，复制插件生成的 API Key。
-3. 在插件设置中开启 **HTTP Server**。YouTube Digest 默认只连接 `http://127.0.0.1:27123`。
+3. 如果想使用普通 HTTP 连接，请在插件设置中开启 **HTTP Server**。YouTube Digest 会先尝试你选择的端点，并在固定的本机端点 `http://127.0.0.1:27123` 与 `https://127.0.0.1:27124` 之间自动回退。
 4. 打开 YouTube Digest 设置，开启 **Obsidian 同步**，由你本人粘贴 API Key；文件夹可以保留为 `学习心法`。
 5. 生成学习心法。扩展会在当前运行的 Vault 中创建或覆盖 `文件夹/视频标题 [视频ID].md`。
 

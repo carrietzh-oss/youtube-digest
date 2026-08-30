@@ -108,7 +108,7 @@ This integration is optional and only runs when you enable **Obsidian sync**.
 
 1. In the target Obsidian Vault, install and enable the community plugin [Local REST API](https://github.com/coddingtonbear/obsidian-local-rest-api).
 2. Open **Settings → Local REST API** in Obsidian and copy its API key.
-3. Enable **HTTP Server** in the plugin settings. YouTube Digest connects only to `http://127.0.0.1:27123` by default.
+3. Enable **HTTP Server** in the plugin settings if you want to use the plain HTTP endpoint. YouTube Digest tries the selected endpoint first and automatically falls back between the fixed local endpoints `http://127.0.0.1:27123` and `https://127.0.0.1:27124`.
 4. In YouTube Digest Settings, enable **Obsidian sync**, paste the API key yourself, and keep the folder as `学习心法` or choose another Vault-relative folder.
 5. Generate a Learning Method. YouTube Digest creates or overwrites `folder/video title [video ID].md` in the currently running Vault.
 
