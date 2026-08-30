@@ -9,7 +9,7 @@ const YTD_OPTIONS = (() => {
       languageGroupLabel: "Interface language",
       heading: "Bring your own API keys",
       lede:
-        "Keys stay in this Chrome profile and are sent only to Supadata and DeepSeek. This open-source extension has no developer server or analytics.",
+        "Keys stay in this Chrome profile. Provider keys go only to Supadata or DeepSeek; the optional Obsidian key goes only to Local REST API on this device. This open-source extension has no developer server or analytics.",
       transcriptProvider: "Transcript provider",
       supadataApiKeyLabel: "Supadata API key",
       supadataHelp: "Used to fetch timestamped YouTube subtitles. ",
@@ -29,11 +29,15 @@ const YTD_OPTIONS = (() => {
       obsidianSync: "Obsidian sync",
       obsidianEnabledLabel:
         "Automatically update Obsidian after generating a learning guide",
-      obsidianVaultLabel: "Vault name or ID",
+      obsidianApiKeyLabel: "Local REST API key",
+      obsidianUseHttpsLabel:
+        "Use HTTPS (requires trusting the Local REST API certificate)",
       obsidianFolderLabel: "Folder inside the vault",
       obsidianHelp:
-        "Uses the official Obsidian URI. The same video overwrites the same Markdown note.",
-      addObsidianVault: "Add an Obsidian vault name or ID, or turn off Obsidian sync.",
+        "Install and enable Local REST API in the target vault. The default HTTP endpoint must be enabled in that plugin's settings.",
+      obsidianPluginLink: "Open plugin instructions",
+      addObsidianApiKey:
+        "Add an Obsidian Local REST API key, or turn off Obsidian sync.",
       saveSettings: "Save settings",
       localRemix: "Local remix",
       customizationTitle: "Want to use another AI model?",
@@ -87,7 +91,7 @@ const YTD_OPTIONS = (() => {
       languageGroupLabel: "界面语言",
       heading: "使用你自己的 API 密钥",
       lede:
-        "密钥仅保存在当前 Chrome 个人资料中，只会发送给 Supadata 和 DeepSeek。本开源扩展没有开发者服务器，也不使用分析服务。",
+        "密钥仅保存在当前 Chrome 个人资料中。服务商 Key 只发送给 Supadata 或 DeepSeek；可选的 Obsidian Key 只发送给本机 Local REST API。本开源扩展没有开发者服务器，也不使用分析服务。",
       transcriptProvider: "字幕服务",
       supadataApiKeyLabel: "Supadata API 密钥",
       supadataHelp: "用于获取带时间戳的 YouTube 字幕。",
@@ -105,10 +109,13 @@ const YTD_OPTIONS = (() => {
         "使用 AI 功能时，DeepSeek 会收到视频字幕及相关视频上下文。保存前请查看 DeepSeek 的服务条款和价格。",
       obsidianSync: "Obsidian 同步",
       obsidianEnabledLabel: "生成学习心法后自动更新 Obsidian",
-      obsidianVaultLabel: "Vault 名称或 ID",
+      obsidianApiKeyLabel: "Local REST API Key",
+      obsidianUseHttpsLabel: "使用 HTTPS（需要先信任 Local REST API 证书）",
       obsidianFolderLabel: "Vault 内的文件夹",
-      obsidianHelp: "使用 Obsidian 官方 URI；同一视频会覆盖更新同一份 Markdown 笔记。",
-      addObsidianVault: "请填写 Obsidian Vault 名称或 ID，或关闭 Obsidian 同步。",
+      obsidianHelp:
+        "请在目标 Vault 中安装并启用 Local REST API。默认连接方式还需要在该插件设置中启用 HTTP Server。",
+      obsidianPluginLink: "打开插件安装说明",
+      addObsidianApiKey: "请填写 Obsidian Local REST API Key，或关闭 Obsidian 同步。",
       saveSettings: "保存设置",
       localRemix: "本地改造",
       customizationTitle: "想使用其他 AI 模型？",
@@ -365,7 +372,8 @@ const YTD_OPTIONS = (() => {
     const aiApiKeyInput = doc.getElementById("aiApiKey");
     const supadataApiKeyInput = doc.getElementById("supadataApiKey");
     const obsidianEnabledInput = doc.getElementById("obsidianEnabled");
-    const obsidianVaultInput = doc.getElementById("obsidianVault");
+    const obsidianApiKeyInput = doc.getElementById("obsidianApiKey");
+    const obsidianUseHttpsInput = doc.getElementById("obsidianUseHttps");
     const obsidianFolderInput = doc.getElementById("obsidianFolder");
     const customizationPrompt = doc.getElementById("customizationPrompt");
     const copyCustomizationPromptBtn = doc.getElementById(
@@ -440,7 +448,8 @@ const YTD_OPTIONS = (() => {
         aiApiKeyInput.value = settings.aiApiKey;
         supadataApiKeyInput.value = settings.supadataApiKey;
         obsidianEnabledInput.checked = settings.obsidianEnabled;
-        obsidianVaultInput.value = settings.obsidianVault;
+        obsidianApiKeyInput.value = settings.obsidianApiKey;
+        obsidianUseHttpsInput.checked = settings.obsidianUseHttps;
         obsidianFolderInput.value = settings.obsidianFolder;
         if (migration.migrated) {
           await storage.set({ [settingsApi.STORAGE_KEY]: settings });
@@ -468,7 +477,8 @@ const YTD_OPTIONS = (() => {
         aiApiKey: aiApiKeyInput.value,
         supadataApiKey: supadataApiKeyInput.value,
         obsidianEnabled: obsidianEnabledInput.checked,
-        obsidianVault: obsidianVaultInput.value,
+        obsidianApiKey: obsidianApiKeyInput.value,
+        obsidianUseHttps: obsidianUseHttpsInput.checked,
         obsidianFolder: obsidianFolderInput.value,
       });
 
@@ -480,8 +490,8 @@ const YTD_OPTIONS = (() => {
         setStatus(saveStatus, "addDeepseekKey");
         return;
       }
-      if (settings.obsidianEnabled && !settings.obsidianVault) {
-        setStatus(saveStatus, "addObsidianVault");
+      if (settings.obsidianEnabled && !settings.obsidianApiKey) {
+        setStatus(saveStatus, "addObsidianApiKey");
         return;
       }
 
