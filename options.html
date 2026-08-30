@@ -37,9 +37,9 @@
         </div>
         <h1 data-i18n="heading">Bring your own API keys</h1>
         <p class="lede" data-i18n="lede">
-          Keys stay in this Chrome profile and are sent only to Supadata and
-          DeepSeek. This open-source extension has no developer server or
-          analytics.
+          Keys stay in this Chrome profile. Provider keys go only to Supadata
+          or DeepSeek; the optional Obsidian key goes only to Local REST API on
+          this device. This open-source extension has no developer server or analytics.
         </p>
       </header>
 
@@ -123,12 +123,17 @@
             <input id="obsidianEnabled" name="obsidianEnabled" type="checkbox" />
             <span data-i18n="obsidianEnabledLabel">Automatically update Obsidian after generating a learning guide</span>
           </label>
-          <label for="obsidianVault" data-i18n="obsidianVaultLabel">Vault name or ID</label>
-          <input id="obsidianVault" name="obsidianVault" type="text" autocomplete="off" placeholder="My Vault" />
+          <label for="obsidianApiKey" data-i18n="obsidianApiKeyLabel">Local REST API key</label>
+          <input id="obsidianApiKey" name="obsidianApiKey" type="password" autocomplete="off" spellcheck="false" placeholder="Paste your Obsidian Local REST API key" />
+          <label class="checkbox-row" for="obsidianUseHttps">
+            <input id="obsidianUseHttps" name="obsidianUseHttps" type="checkbox" />
+            <span data-i18n="obsidianUseHttpsLabel">Use HTTPS (requires trusting the Local REST API certificate)</span>
+          </label>
           <label for="obsidianFolder" data-i18n="obsidianFolderLabel">Folder inside the vault</label>
           <input id="obsidianFolder" name="obsidianFolder" type="text" autocomplete="off" placeholder="学习心法" />
-          <p class="help" data-i18n="obsidianHelp">
-            Uses the official Obsidian URI. The same video overwrites the same Markdown note.
+          <p class="help">
+            <span data-i18n="obsidianHelp">Install and enable Local REST API in the target vault. The default HTTP endpoint must be enabled in that plugin's settings.</span>
+            <a href="https://github.com/coddingtonbear/obsidian-local-rest-api" target="_blank" rel="noreferrer" data-i18n="obsidianPluginLink">Open plugin instructions</a>.
           </p>
         </section>
 
