@@ -1,6 +1,6 @@
 # Privacy
 
-Effective: July 28, 2026
+Effective: August 30, 2026
 
 YouTube Digest is a GitHub-only, bring-your-own-key Chrome extension. It has no YouTube Digest account, developer-operated backend, analytics, advertising, or telemetry.
 
@@ -15,7 +15,7 @@ Depending on the feature you use, YouTube Digest handles:
 - transcript context around a timestamped note;
 - content you ask to translate;
 - notes you save;
-- Supadata and DeepSeek configuration, including API keys; and
+- Supadata, DeepSeek, and optional Obsidian Local REST API configuration, including API keys; and
 - cached transcript, digest, and translation results.
 
 ## Where data goes
@@ -36,6 +36,12 @@ The published version sends AI feature content to DeepSeek V4 Flash at `https://
 
 The endpoint and `deepseek-v4-flash` model are fixed in the published Settings page. You provide one DeepSeek API key. To use another provider or model, you must adapt your own local source copy and its permissions. The Settings page provides a coding-agent prompt for that purpose and warns you never to include an API key in the prompt or chat.
 
+### Obsidian Local REST API
+
+When you enable Obsidian sync, YouTube Digest sends the generated Learning Method Markdown and your Local REST API key directly to the Local REST API plugin running in the active Vault. The published extension only permits the fixed loopback endpoints `http://127.0.0.1:27123` and `https://127.0.0.1:27124`; it does not send the Obsidian key or note content to an external host. A `PUT /vault/{path}` request creates or overwrites the note.
+
+The HTTP endpoint must be enabled in Local REST API settings. The HTTPS endpoint uses the plugin's self-signed certificate and requires you to trust that certificate before Chrome can connect.
+
 Requests go directly from the extension to Supadata or DeepSeek. They are authenticated with the keys you supply. YouTube Digest's developer does not proxy or receive these requests.
 
 Those services process data under their own terms, privacy policies, retention practices, and account settings. Do not send confidential, personal, or regulated content unless their terms and your obligations permit it.
@@ -44,7 +50,7 @@ Those services process data under their own terms, privacy policies, retention p
 
 YouTube Digest uses Chrome's local extension storage, not a YouTube Digest cloud service.
 
-- Supadata and DeepSeek settings and API keys remain on the device in Chrome's extension storage.
+- Supadata, DeepSeek, and optional Obsidian Local REST API settings and API keys remain on the device in Chrome's extension storage.
 - Saved notes remain until you delete them or remove/clear the extension's data. The extension keeps up to 100 notes.
 - Recent transcript, digest, and per-segment translation cache entries are stored
   locally. The cache is limited to 20 videos, and entries older than 30 days are
@@ -57,7 +63,8 @@ To remove data:
 - delete individual saved notes in YouTube Digest;
 - use the Options page to clear cached digests, delete all notes, or reset all extension data;
 - remove the extension or clear its stored data from Chrome to delete all local settings, keys, notes, and cache entries; and
-- revoke keys in the Supadata or DeepSeek dashboard to stop their future use.
+- revoke keys in the Supadata or DeepSeek dashboard to stop their future use; and
+- regenerate the Local REST API key in Obsidian if that local key may be compromised.
 
 Clearing local data does not delete information already processed or retained by Supadata or DeepSeek. Use each service's controls for service-side requests.
 
@@ -72,6 +79,7 @@ YouTube Digest uses Chrome permissions for these purposes:
 - YouTube host access: read the active video's URL and metadata and provide timestamp controls.
 - Supadata host access: retrieve transcripts.
 - DeepSeek host access: provide AI overviews, explanations, translation, and note polishing through DeepSeek V4 Flash.
+- Localhost host access: write generated Learning Method Markdown to Obsidian Local REST API at the fixed loopback ports 27123 or 27124 when you enable the integration.
 
 YouTube Digest does not use these permissions to monitor general browsing activity.
 
