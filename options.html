@@ -117,6 +117,21 @@
           </div>
         </section>
 
+        <section class="card">
+          <h2 data-i18n="obsidianSync">Obsidian sync</h2>
+          <label class="checkbox-row" for="obsidianEnabled">
+            <input id="obsidianEnabled" name="obsidianEnabled" type="checkbox" />
+            <span data-i18n="obsidianEnabledLabel">Automatically update Obsidian after generating a learning guide</span>
+          </label>
+          <label for="obsidianVault" data-i18n="obsidianVaultLabel">Vault name or ID</label>
+          <input id="obsidianVault" name="obsidianVault" type="text" autocomplete="off" placeholder="My Vault" />
+          <label for="obsidianFolder" data-i18n="obsidianFolderLabel">Folder inside the vault</label>
+          <input id="obsidianFolder" name="obsidianFolder" type="text" autocomplete="off" placeholder="学习心法" />
+          <p class="help" data-i18n="obsidianHelp">
+            Uses the official Obsidian URI. The same video overwrites the same Markdown note.
+          </p>
+        </section>
+
         <div class="form-actions">
           <button class="primary" type="submit" data-i18n="saveSettings">
             Save settings
