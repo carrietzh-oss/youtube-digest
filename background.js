@@ -1092,24 +1092,36 @@ async function handleGenerateLearningMethod(message) {
       error: "No cached digest content is available.",
     };
   }
-  const source = digest || transcript;
-  const tutorialPrompt = `你是一位擅长把教学视频重构成中文深度教程的老师。只使用用户给出的 Digest，不凭标题补写事实。
-面向无技术背景的初学者，保留视频论证顺序、因果链、限制和关键案例，删除寒暄与重复口头语。首次出现术语时同时解释英文全称、中文含义和作用。每个重要知识点必须回答：它是什么、为什么出现、怎样运作、实际怎样使用；先用具体类比建立直觉，再明确类比边界，不能把类比当事实。
-教程必须足够完整细致：3-8 个主章节，每章 2-5 个子主题；每个子主题包含定义、原因、机制、类比、类比边界、例子、真实常见误区、应用方法和限制。最后给出一个把主要概念串起来的完整案例、可执行复习路线和最终心法。
-输出严格 JSON，不要 Markdown 围栏。结构：
-{"coverageNote":"覆盖范围说明","learningGoals":["4-8 项"],"framework":"整部视频主线","frameworkSteps":["3-7 步"],"sections":[{"title":"按视频顺序的章节名","overview":"章节概览","whyItMatters":"为什么重要","subtopics":[{"title":"知识点","term":"英文术语与中文名","definition":"是什么","why":"为什么出现","mechanism":"怎样运作，写清因果链","analogy":"通俗类比","analogyBoundary":"类比的对应关系与边界","example":"忠于视频的例子；教学补充需标明","misconceptions":["2-4 个真实误区"],"application":"怎样使用","limitations":["限制或适用边界"]}],"summary":"本章小结"}],"caseStudy":{"title":"案例标题","scenario":"真实任务","steps":["串联步骤"],"conclusion":"案例结论"},"reviewPath":["可执行安排"],"finalMindset":"准确重建整部视频核心模型的一段话"}}`;
-  const extrasPrompt = `你是中文教程的图解编辑和出题老师。根据已完成教程设计概念图规格和知识检测。
-图只解释难以用短段落讲清的关系，不做装饰。生成 2-5 张图，覆盖全局框架及关键流程、循环或对比。每张图使用 2-5 个节点；label 最多 10 个汉字，detail 最多 22 个汉字；caption 说明先看哪里，takeaway 说明必须记住什么。type 只能是 flow、cycle、comparison。sectionIndex 为图应插入的章节序号，0 表示全局框架。
-再生成恰好 10 道四选一单选题，覆盖不同章节。错误选项必须对应真实误区，不能明显凑数。解析说明正确原因，并澄清最迷惑的错误选项；答案在作答前不会展示。
-输出严格 JSON，不要 Markdown 围栏。结构：
-{"diagrams":[{"title":"","type":"flow","sectionIndex":0,"caption":"","nodes":[{"label":"","detail":""}],"takeaway":""}],"quiz":[{"question":"","options":["","","",""],"answerIndex":0,"explanation":"","misconception":"最迷惑错误项为何错","relatedSection":"章节名"}]}`;
+  // Prefer the full transcript when it is available. A digest is a fallback
+  // for older cached entries, but must never replace richer source material.
+  const source = transcript || digest;
+  const tutorialSystemPrompt = await loadPromptSection(
+    "learning-method.md",
+    "Tutorial system prompt",
+  );
+  const tutorialUserPrompt = await loadPromptSection(
+    "learning-method.md",
+    "Tutorial user prompt",
+    {
+      videoTitle: message.videoTitle || "未知",
+      sourceText: source,
+    },
+  );
+  const extrasSystemPrompt = await loadPromptSection(
+    "learning-method.md",
+    "Extras system prompt",
+  );
+  const extrasUserPrompt = (tutorialJson) =>
+    loadPromptSection("learning-method.md", "Extras user prompt", {
+      tutorialJson,
+    });
 
   try {
     notifyLearningProgress("正在生成完整教程（1/2）", "梳理章节、机制、案例、误区与应用边界…");
     const tutorial = normalizeLearningTutorial(
       await requestLearningJson(
-        tutorialPrompt,
-        `视频标题：${message.videoTitle || "未知"}\n\n已有 Digest 内容：\n${source}`,
+        tutorialSystemPrompt,
+        tutorialUserPrompt,
         12000,
       ),
     );
@@ -1132,8 +1144,8 @@ async function handleGenerateLearningMethod(message) {
     };
     const extras = normalizeLearningExtras(
       await requestLearningJson(
-        extrasPrompt,
-        JSON.stringify(tutorialForExtras),
+        extrasSystemPrompt,
+        await extrasUserPrompt(JSON.stringify(tutorialForExtras)),
         7000,
       ),
     );

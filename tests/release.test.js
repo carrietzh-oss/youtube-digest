@@ -335,6 +335,12 @@ test("published prompt files contain runtime sections", () => {
   const expectedSections = {
     "prompts/analysis.md": ["System prompt", "User prompt"],
     "prompts/explain.md": ["System prompt", "User prompt"],
+    "prompts/learning-method.md": [
+      "Tutorial system prompt",
+      "Tutorial user prompt",
+      "Extras system prompt",
+      "Extras user prompt",
+    ],
     "prompts/note-cleanup.md": ["System prompt", "User prompt"],
     "prompts/translation.md": [
       "Shared base rules",

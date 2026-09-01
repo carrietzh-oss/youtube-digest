@@ -836,7 +836,9 @@ async function generateLearningMethod() {
       action: "generateLearningMethod",
       videoTitle: currentVideoTitle,
       digestText: currentTranscriptText,
-      transcriptText: currentTranscriptText,
+      // Preserve the source timestamps so the learning-mindset prompt can
+      // keep the video's chronology and avoid inventing time references.
+      transcriptText: currentTranscriptTimestamped || currentTranscriptText,
     });
     if (!response?.success) throw new Error(response?.error || "生成失败");
     if (requestedVideoId !== currentVideoId) return;

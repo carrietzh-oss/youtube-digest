@@ -40,6 +40,7 @@ public_allowlist=(
   "icons/icon128.png"
   "prompts/analysis.md"
   "prompts/explain.md"
+  "prompts/learning-method.md"
   "prompts/note-cleanup.md"
   "prompts/translation.md"
   "README.md"
